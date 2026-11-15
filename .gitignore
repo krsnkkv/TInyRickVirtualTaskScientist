@@ -2,3 +2,5 @@ Rick.app/
 Mochi.app/
 .DS_Store
 *.o
+# Sprite sheets are copyrighted; keep them local
+sprites/
