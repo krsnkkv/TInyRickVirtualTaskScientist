@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
         addShortcutItem("Hide / Show Rick", #selector(toggleHidden), "r")
         menu.addItem(withTitle: "Restart Rick", action: #selector(restart), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Demo: Sad Rick", action: #selector(demoSad), keyEquivalent: "").target = self
         menu.addItem(.separator())
         addToggle("Mute Rick", #selector(toggleMute), pet.muted)
         addToggle("Stay Still", #selector(toggleStill), pet.stayStill)
@@ -79,6 +80,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         relaunch.arguments = ["-c", "sleep 0.6; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
         try? relaunch.run()
         NSApp.terminate(nil)
+    }
+
+    /// Shows the "ignored for a while" sulk right away. Hover or click Rick to cheer him up.
+    @objc private func demoSad() {
+        if !pet.isShown { pet.show() }
+        // Wait for the menu to close (and the mouse to leave him), or the hover would cancel it at once.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.pet.sulk() }
     }
 
     @objc private func toggleList() {

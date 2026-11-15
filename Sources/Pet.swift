@@ -795,14 +795,7 @@ final class PetController {
 
         // ignored for a while → sad, nudges you about the list
         if now - lastTouched > lonelyAfter, !chatOpen, !sulking, activity != .drag, activity != .fall {
-            lastTouched = now
-            activity = .idle
-            say(Personality.line(.lonely), for: 8)
-            if view.spriteSet.anims["sad"] != nil {
-                view.special = "sad"; view.specialStart = view.t; view.holdSpecial = true
-                specialTime = .infinity
-                sulking = true                           // stays slumped until you interact
-            }
+            sulk()
         }
 
         // random chatter when wandering
@@ -824,6 +817,19 @@ final class PetController {
             lastDrawn = state
         }
         schedule(desiredInterval)
+    }
+
+    /// Gets sad about being ignored: nags about the list, then holds the slumped pose
+    /// (no wandering, no chatter) until you hover, click or drag him.
+    func sulk() {
+        lastTouched = CACurrentMediaTime()
+        if activity == .walk || activity == .sleep { activity = .idle }
+        say(Personality.line(.lonely), for: 8)
+        if view.spriteSet.anims["sad"] != nil {
+            view.special = "sad"; view.specialStart = view.t; view.holdSpecial = true
+            specialTime = .infinity
+            sulking = true
+        }
     }
 
     /// Picks what to do next after standing around.
