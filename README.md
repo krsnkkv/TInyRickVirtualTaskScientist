@@ -16,7 +16,16 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 - Items due soon are coloured (red = overdue, orange = today, amber = within 2 days), and each box shows its next due date.
 - **Reminders:** every 15–25 minutes Rick brings up something overdue or due within 3 days, waking up if it's napping. **What's Due Soon?** in the menu asks right away.
 - **Drag Rick** anywhere and it falls back to the floor. Hover and it waves; leave it alone and it wanders or naps.
-- **🧪 menu-bar icon** (or right-click Rick): Open My List, What's Due Soon?, Hide/Show Rick, Choose Sprite…, Use Built-in Look, Show List File in Finder, Quit.
+- **🧪 menu-bar icon** (or right-click Rick): Open My List, What's Due Soon?, Hide/Show Rick, the options below, Choose Sprite…, Use Built-in Look, Show List File in Finder, Quit.
+
+## Options (🧪 menu, remembered between launches)
+- **Mute Rick**: no speech bubbles.
+- **Stay Still**: he hangs around in one spot (guitar, naps, waves) instead of walking off.
+- **Anti-Gravity**: he stays wherever you drop him instead of falling to the floor.
+- **ADHD Mode**: hops and zooms around and never naps.
+
+If you leave Rick alone for 10 minutes he gets sad, nags you about your to-do list, and stays slumped until you hover, click or drag him.
+Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
 
 ## Personality
 Everything Rick says lives in [`Personality.md`](Personality.md): grumpy-genius snark, but never mean. Each `## section` is a moment (greeting, reminders, being dragged…) and each bullet is a line he might say, with `{item}` and `{when}` filled in. Edit it and rebuild, or drop your own copy at `~/Library/Application Support/MochiPet/Personality.md` and restart Rick.

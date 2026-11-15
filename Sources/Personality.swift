@@ -5,7 +5,7 @@ enum Moment: String, CaseIterable {
     case greeting, hover, idle, overdue, today, tomorrow, soon
     case nothingDue = "nothing due", dragged, landed
     case listOpened = "list opened", listClosed = "list closed"
-    case wokeUp = "woke up", newSprite = "new sprite"
+    case wokeUp = "woke up", newSprite = "new sprite", lonely
 }
 
 /// What the pet says, loaded from Personality.md.
@@ -32,7 +32,7 @@ enum Personality {
     static func reminder(for item: DueItem) -> String {
         let d = item.daysLeft
         let moment: Moment = d < 0 ? .overdue : d == 0 ? .today : d == 1 ? .tomorrow : .soon
-        return line(moment, item: item.text, when: when(item.due))
+        return line(moment, item: DueParser.stripDateWords(item.text), when: when(item.due))
     }
 
     /// "today", "tomorrow", "Thursday", "yesterday", "3 days ago", "Thu 26 Nov".
@@ -88,5 +88,6 @@ enum Personality {
         .listClosed: ["Now go do it."],
         .wokeUp: ["Huh? I'm up."],
         .newSprite: ["New body. Same genius."],
+        .lonely: ["Don't forget your to-do list, please!"],
     ]
 }

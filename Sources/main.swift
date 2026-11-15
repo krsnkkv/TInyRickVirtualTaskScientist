@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         matrix.onVisibility = { [weak self] open in
             guard let self else { return }
             self.pet.chatOpen = open
+            self.pet.touched()
             self.pet.say(Personality.line(open ? .listOpened : .listClosed), for: 3.5)
             if !open { self.pet.celebrate() }
         }
@@ -41,12 +42,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Hide / Show Rick", action: #selector(toggleHidden), keyEquivalent: "").target = self
         menu.addItem(.separator())
+        addToggle("Mute Rick", #selector(toggleMute), pet.muted)
+        addToggle("Stay Still", #selector(toggleStill), pet.stayStill)
+        addToggle("Anti-Gravity", #selector(toggleGravity), pet.antiGravity)
+        addToggle("ADHD Mode", #selector(toggleADHD), pet.adhd)
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Choose Sprite…", action: #selector(chooseSprite), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Use Built-in Look", action: #selector(resetSprite), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Show List File in Finder", action: #selector(revealFile), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Rick", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
+    }
+
+    private func addToggle(_ title: String, _ action: Selector, _ on: Bool) {
+        let item = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.state = on ? .on : .off
+    }
+
+    @objc private func toggleMute(_ item: NSMenuItem) {
+        pet.muted.toggle(); item.state = pet.muted ? .on : .off
+    }
+    @objc private func toggleStill(_ item: NSMenuItem) {
+        pet.stayStill.toggle(); item.state = pet.stayStill ? .on : .off
+    }
+    @objc private func toggleGravity(_ item: NSMenuItem) {
+        pet.antiGravity.toggle(); item.state = pet.antiGravity ? .on : .off
+    }
+    @objc private func toggleADHD(_ item: NSMenuItem) {
+        pet.adhd.toggle(); item.state = pet.adhd ? .on : .off
     }
 
     @objc private func openList() {

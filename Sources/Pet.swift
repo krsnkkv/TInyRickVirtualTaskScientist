@@ -64,6 +64,8 @@ final class PetView: NSView {
     /// A one-off sprite animation (e.g. "sad", "music") playing right now, and when it started.
     var special: String?
     var specialStart: CGFloat = 0
+    /// Play the special animation once, then stay on its last frame (e.g. sulking).
+    var holdSpecial = false
 
     var sprite: CGImage? { spriteFrame?.image }
 
@@ -86,7 +88,13 @@ final class PetView: NSView {
             if let sleep = a["sleep"] { return (loop(sleep, fps: 0.7), flip) }
             return (idle[0], flip)
         default:
-            if let s = special, let frames = a[s] { return (loop(frames, fps: 6, from: specialStart), flip) }
+            if let s = special, let frames = a[s] {
+                if holdSpecial {
+                    let i = min(Int(max(0, t - specialStart) * 5), frames.count - 1)
+                    return (frames[i], flip)
+                }
+                return (loop(frames, fps: 6, from: specialStart), flip)
+            }
             if mood == .happy, let wave = a["wave"] { return (loop(wave, fps: 6), flip) }
             return (loop(idle, fps: 4), flip)
         }
@@ -507,7 +515,36 @@ final class PetController {
     private var timer: Timer?
 
     static let size = NSSize(width: 230, height: 210)
-    private let walkSpeed: CGFloat = 40
+    private var walkSpeed: CGFloat { adhd ? 120 : 40 }
+
+    // MARK: options (remembered between launches)
+    private static let defaults = UserDefaults.standard
+    /// No speech bubbles at all.
+    var muted = defaults.bool(forKey: "muted") { didSet { Self.defaults.set(muted, forKey: "muted"); if muted { say(nil, for: 0) } } }
+    /// Never walks off; still animates (guitar, naps, waves).
+    var stayStill = defaults.bool(forKey: "stayStill") { didSet { Self.defaults.set(stayStill, forKey: "stayStill") } }
+    /// Stays wherever you drop it instead of falling to the floor.
+    var antiGravity = defaults.bool(forKey: "antiGravity") { didSet { Self.defaults.set(antiGravity, forKey: "antiGravity") } }
+    /// Hyperactive: hops and zooms around, never naps.
+    var adhd = defaults.bool(forKey: "adhd") { didSet { Self.defaults.set(adhd, forKey: "adhd"); activityTime = 0 } }
+
+    /// After this long without being hovered, clicked or dragged, Rick gets sad about your list.
+    var lonelyAfter: Double = 10 * 60
+    private var lastTouched = CACurrentMediaTime()
+    private var vx: CGFloat = 0
+
+    /// Sad and sulking after being ignored; stays that way until you interact.
+    private(set) var sulking = false
+
+    /// Call when the user interacts with Rick (hover, click, opening the list…).
+    func touched() {
+        lastTouched = CACurrentMediaTime()
+        if sulking {
+            sulking = false
+            view.special = nil; view.holdSpecial = false; specialTime = 0
+            activityTime = 1
+        }
+    }
 
     /// Returns something due soon to remind you about (nil if nothing is).
     var reminder: (() -> (text: String, overdue: Bool)?)?
@@ -521,13 +558,15 @@ final class PetController {
         guard let r = reminder?() else { return false }
         if activity == .sleep { activity = .idle; activityTime = 3 }
         say(r.text, for: 9)
+        if sulking { return true }                                      // keep the sad pose
         if r.overdue { play("sad", for: 6) } else { happyTime = 2 }   // overdue = disappointed, otherwise wave
         return true
     }
 
     /// Plays a named sprite animation (if the sprite has it) for a few seconds.
     func play(_ name: String, for seconds: Double) {
-        guard view.spriteSet.anims[name] != nil else { return }
+        guard view.spriteSet.anims[name] != nil, !sulking else { return }
+        view.holdSpecial = false
         view.special = name
         view.specialStart = view.t
         specialTime = seconds
@@ -556,6 +595,7 @@ final class PetController {
             guard let self else { return }
             self.hovering = inside
             guard inside else { return }
+            self.touched()
             if self.activity == .sleep {
                 self.activity = .idle; self.activityTime = 2
                 self.say(Personality.line(.wokeUp), for: 3)
@@ -578,6 +618,7 @@ final class PetController {
     }
 
     func say(_ text: String?, for seconds: Double) {
+        if muted, text != nil { return }
         view.bubbleText = text
         bubbleTime = seconds
     }
@@ -588,6 +629,7 @@ final class PetController {
 
     private func mouseDown(_ e: NSEvent) {
         let m = NSEvent.mouseLocation
+        touched()
         dragStart = m
         dragOffset = CGPoint(x: m.x - window.frame.minX, y: m.y - window.frame.minY)
         didDrag = false
@@ -603,7 +645,11 @@ final class PetController {
 
     private func mouseUp(_ e: NSEvent) {
         if didDrag {
-            activity = .fall; vy = 0; thrown = true
+            if antiGravity {
+                activity = .idle; activityTime = 2          // just hang there
+            } else {
+                activity = .fall; vy = 0; vx = 0; thrown = true
+            }
         } else {
             onClick?()
         }
@@ -649,38 +695,35 @@ final class PetController {
         case .fall:
             vy -= 2400 * CGFloat(dt)
             origin.y += vy * CGFloat(dt)
+            origin.x += vx * CGFloat(dt)
+            if origin.x < minX || origin.x > maxX { vx = -vx }           // bounce off screen edges
             origin.x = min(max(origin.x, minX), maxX)
             if origin.y <= floorY {
                 origin.y = floorY
                 view.squash = min(1, abs(vy) / 900 + 0.3)
                 if thrown, abs(vy) > 700 { say(Personality.line(.landed), for: 2.5) }
                 thrown = false
-                vy = 0
-                activity = .idle; activityTime = 1.2
+                vy = 0; vx = 0
+                activity = .idle; activityTime = adhd ? .random(in: 0.2...0.8) : 1.2
             }
             window.setFrameOrigin(origin)
         case .walk:
-            if chatOpen || hovering || chatMood != nil { activity = .idle; activityTime = 1; break }
+            if chatOpen || hovering || chatMood != nil || stayStill { activity = .idle; activityTime = 1; break }
             let dx = targetX - origin.x
             if abs(dx) < 2 {
-                activity = .idle; activityTime = .random(in: 2...6)
+                activity = .idle; activityTime = adhd ? .random(in: 0.3...1.2) : .random(in: 2...6)
             } else {
                 view.facing = dx > 0 ? 1 : -1
                 origin.x += view.facing * min(abs(dx), walkSpeed * CGFloat(dt))
-                origin.y = floorY
+                if !antiGravity { origin.y = floorY }
                 window.setFrameOrigin(origin)
             }
         case .idle, .sleep:
-            if abs(origin.y - floorY) > 1 { activity = .fall; break }   // e.g. screen layout changed
+            if !antiGravity, origin.y > floorY + 1 { activity = .fall; vy = 0; break }   // gravity back on
+            if antiGravity, origin.y < floorY { origin.y = floorY; window.setFrameOrigin(origin) }
             activityTime -= dt
-            if activityTime <= 0, !chatOpen, !hovering, chatMood == nil {
-                let roll = Double.random(in: 0...1)
-                if activity == .idle && roll < 0.18 {
-                    activity = .sleep; activityTime = .random(in: 10...20)
-                } else {
-                    activity = .walk
-                    targetX = .random(in: minX...maxX)
-                }
+            if activityTime <= 0, !chatOpen, !hovering, chatMood == nil, !sulking {
+                decideNext(minX: minX, maxX: maxX)
             }
         }
 
@@ -697,8 +740,20 @@ final class PetController {
             }
         }
 
+        // ignored for a while → sad, nudges you about the list
+        if now - lastTouched > lonelyAfter, !chatOpen, !sulking, activity != .drag, activity != .fall {
+            lastTouched = now
+            activity = .idle
+            say(Personality.line(.lonely), for: 8)
+            if view.spriteSet.anims["sad"] != nil {
+                view.special = "sad"; view.specialStart = view.t; view.holdSpecial = true
+                specialTime = .infinity
+                sulking = true                           // stays slumped until you interact
+            }
+        }
+
         // random chatter when wandering
-        if !chatOpen, chatMood == nil, activity != .drag, activity != .sleep, bubbleTime <= 0 {
+        if !chatOpen, chatMood == nil, !sulking, activity != .drag, activity != .sleep, bubbleTime <= 0 {
             chatterTimer -= dt
             if chatterTimer <= 0 {
                 chatterTimer = .random(in: 45...90)
@@ -711,6 +766,36 @@ final class PetController {
 
         view.mood = currentMood()
         view.needsDisplay = true
+    }
+
+    /// Picks what to do next after standing around.
+    private func decideNext(minX: CGFloat, maxX: CGFloat) {
+        let roll = Double.random(in: 0...1)
+        if adhd {
+            if !antiGravity, roll < 0.45 {                       // boing
+                activity = .fall
+                vy = .random(in: 650...950)
+                vx = .random(in: 80...220) * (Bool.random() ? 1 : -1)
+                view.facing = vx > 0 ? 1 : -1
+            } else if !stayStill {
+                activity = .walk
+                targetX = .random(in: minX...maxX)
+            } else {
+                activityTime = .random(in: 0.3...1)
+                play(["wave", "jump", "think"].randomElement()!, for: 1.5)   // fidget in place
+            }
+            return
+        }
+        if activity == .idle, roll < 0.12 {
+            activity = .sleep; activityTime = .random(in: 10...20)
+        } else if stayStill || roll < 0.45 {
+            // hang around: usually strum the guitar if the sprite has one
+            activity = .idle; activityTime = .random(in: 6...12)
+            if Double.random(in: 0...1) < 0.7 { play("music", for: activityTime) }
+        } else {
+            activity = .walk
+            targetX = .random(in: minX...maxX)
+        }
     }
 
     private func currentMood() -> PetMood {

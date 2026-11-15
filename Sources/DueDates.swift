@@ -56,6 +56,23 @@ enum DueParser {
         return nil
     }
 
+    /// The item without its due-date words, so reminders don't repeat them:
+    /// "Cross check MLS by tomorrow!" → "Cross check MLS", "Essay due next thu" → "Essay".
+    static func stripDateWords(_ text: String) -> String {
+        let months = "jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t|tember)?|oct(ober)?|nov(ember)?|dec(ember)?"
+        let days = "monday|mon|tuesday|tues|tue|wednesday|weds|wed|thursday|thurs|thur|thu|friday|fri|saturday|sunday"
+        let ordinal = "[0-9]{1,2}(st|nd|rd|th)?"
+        let date = "[0-9]{1,2}/[0-9]{1,2}(/[0-9]{2,4})?"
+            + "|today|tonight|eod|tomorrow|tmrw|tmr|((this|next)\\s+)?(\(days))"
+            + "|(the\\s+)?\(ordinal)(\\s+(of\\s+)?(\(months)))?"
+            + "|(\(months))\\s+\(ordinal)"
+        let pattern = "(?i)\\s*\\b((by|on|due|before|until|for|this)\\s+)*(\(date))\\b"
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return text }
+        let stripped = re.stringByReplacingMatches(in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
+        let cleaned = stripped.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "!?.,:;-–—")))
+        return cleaned.isEmpty ? text : cleaned
+    }
+
     /// Whole days from today until `date` (negative = overdue).
     static func daysUntil(_ date: Date, now: Date = Date(), calendar cal: Calendar = .current) -> Int {
         cal.dateComponents([.day], from: cal.startOfDay(for: now), to: cal.startOfDay(for: date)).day ?? 0
