@@ -35,6 +35,19 @@ enum DueParser {
             }
         }
 
+        // "by 18th", "the 2nd" → that day this month, or next month if it has passed
+        if let m = s.range(of: "\\b([0-9]{1,2})(st|nd|rd|th)\\b", options: .regularExpression),
+           !has("jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december"),
+           let day = Int(s[m].filter(\.isNumber)), (1...31).contains(day) {
+            var c = cal.dateComponents([.year, .month], from: today)
+            c.day = day
+            if let d = cal.date(from: c), cal.component(.day, from: d) == day, d >= today { return d }
+            if let next = cal.date(byAdding: .month, value: 1, to: today) {
+                var n = cal.dateComponents([.year, .month], from: next); n.day = day
+                if let d = cal.date(from: n) { return d }
+            }
+        }
+
         if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue),
            let match = detector.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
            let date = match.date {
