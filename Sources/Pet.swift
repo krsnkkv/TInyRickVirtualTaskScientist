@@ -18,6 +18,7 @@ private enum Palette {
     static let bodyTop = NSColor(hex: 0xFFEDE1)
     static let bodyBottom = NSColor(hex: 0xFFC6D2)
     static let outline = NSColor(hex: 0xE59AAE)
+    static let stripe = NSColor(hex: 0xFF9EB5, alpha: 0.55)
     static let feet = NSColor(hex: 0xF7B3A8)
     static let earInner = NSColor(hex: 0xFF9FB4)
     static let ink = NSColor(hex: 0x3A2E39)
@@ -71,7 +72,7 @@ final class PetView: NSView {
     override func rightMouseDown(with event: NSEvent) { onRightClick?(event) }
 
     /// Size of one "pixel" of the pixel-art character, in points. 1 = smooth vector look.
-    var pixelSize: CGFloat = 1
+    var pixelSize: CGFloat = 3
 
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
@@ -245,6 +246,17 @@ final class PetView: NSView {
         let rect = NSRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
         let body = NSBezierPath(roundedRect: rect, xRadius: w * 0.46, yRadius: h * 0.5)
         NSGradient(starting: Palette.bodyTop, ending: Palette.bodyBottom)?.draw(in: body, angle: -90)
+        // tabby stripes
+        NSGraphicsContext.saveGraphicsState()
+        body.addClip()
+        Palette.stripe.setFill()
+        let band = pixelSize * 2, gap = pixelSize * 3          // snap to the pixel grid
+        var y = (rect.minY / pixelSize).rounded() * pixelSize + pixelSize
+        while y < rect.maxY {
+            NSBezierPath(rect: NSRect(x: rect.minX, y: y, width: w, height: band)).fill()
+            y += band + gap
+        }
+        NSGraphicsContext.restoreGraphicsState()
         body.lineWidth = 2.2
         Palette.outline.setStroke(); body.stroke()
         // soft sheen
