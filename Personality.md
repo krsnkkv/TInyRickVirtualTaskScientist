@@ -93,3 +93,8 @@ He's secretly on your side: every reminder ends with a push to actually do the t
 - Hey. Remember me? The guy who knows your deadlines? Don't forget your to-do list, please.
 - It's been a while. The list didn't do itself. Shocking, I know.
 - I'm not sad. My face just does this when nobody checks their to-do list.
+
+## summoned
+- You rang?
+- What. I was busy. Doing genius stuff.
+- Rick's back. Try to contain your excitement.

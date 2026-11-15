@@ -5,8 +5,16 @@ A small pixel-art pet (the built-in look is a striped creature; load any sprite 
 ## Build & run
 
 ```bash
-./build.sh && open Rick.app
+./install.sh
 ```
+Builds Rick, installs him to `~/Applications` (so Spotlight finds him and **Start at Login** works), adds the `rick` terminal command, and starts him. For a quick dev run without installing: `./build.sh && open Rick.app`.
+
+## Shortcuts & commands
+- **⌃⌘C**: open/close your list (works from any app)
+- **⌃⌘R**: restart Rick (quit and reopen)
+- `rick` / `rick stop` / `rick restart` / `rick status` in the terminal
+- **Start at Login** in the 🧪 menu keeps him around after a reboot
+- **Hide / Show Rick** in the 🧪 menu: while hidden he does no work at all (no animation, no reminders)
 
 Needs only the Xcode command-line tools (native Swift/AppKit, no other dependencies).
 
@@ -26,6 +34,9 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 
 If you leave Rick alone for 10 minutes he gets sad, nags you about your to-do list, and stays slumped until you hover, click or drag him.
 Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
+
+## List background
+**Choose List Background…** puts any picture behind the four boxes (they turn slightly see-through with wider gaps). It's copied to `~/Library/Application Support/MochiPet/list-background.png`, outside this repo. **Remove List Background** goes back to plain.
 
 ## Personality
 Everything Rick says lives in [`Personality.md`](Personality.md): grumpy-genius snark, but never mean. Each `## section` is a moment (greeting, reminders, being dragged…) and each bullet is a line he might say, with `{item}` and `{when}` filled in. Edit it and rebuild, or drop your own copy at `~/Library/Application Support/MochiPet/Personality.md` and restart Rick.

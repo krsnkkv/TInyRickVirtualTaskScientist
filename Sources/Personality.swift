@@ -5,7 +5,7 @@ enum Moment: String, CaseIterable {
     case greeting, hover, idle, overdue, today, tomorrow, soon
     case nothingDue = "nothing due", dragged, landed
     case listOpened = "list opened", listClosed = "list closed"
-    case wokeUp = "woke up", newSprite = "new sprite", lonely
+    case wokeUp = "woke up", newSprite = "new sprite", lonely, summoned
 }
 
 /// What the pet says, loaded from Personality.md.
@@ -89,5 +89,6 @@ enum Personality {
         .wokeUp: ["Huh? I'm up."],
         .newSprite: ["New body. Same genius."],
         .lonely: ["Don't forget your to-do list, please!"],
+        .summoned: ["You rang?"],
     ]
 }

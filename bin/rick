@@ -1,0 +1,18 @@
+#!/bin/zsh
+# rick: start/stop the Rick desktop pet from the terminal.
+#   rick            start Rick (or bring him back if hidden: use ⌃⌘R)
+#   rick stop       quit Rick
+#   rick restart    quit and start again
+#   rick status     is he running?
+APP="$HOME/Applications/Rick.app"
+[ -d "$APP" ] || APP="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)/Rick.app"
+
+case "${1:-start}" in
+  start)   open "$APP" && echo "🧪 Rick's up. ⌃⌘R hides/shows him, ⌃⌘C opens your list." ;;
+  stop|quit)
+           osascript -e 'tell application "Rick" to quit' >/dev/null 2>&1 || pkill -x Rick
+           echo "Rick's gone. For now." ;;
+  restart) "$0" stop; sleep 1; "$0" start ;;
+  status)  if pgrep -x Rick >/dev/null; then echo "Rick is running."; else echo "Rick is not running."; fi ;;
+  *)       echo "usage: rick [start|stop|restart|status]"; exit 1 ;;
+esac

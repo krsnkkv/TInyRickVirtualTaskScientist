@@ -59,6 +59,8 @@ enum MatrixStore {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MochiPet")
     }
     static var file: URL { dir.appendingPathComponent("matrix.json") }
+    /// Optional picture shown behind the four boxes.
+    static var backgroundFile: URL { dir.appendingPathComponent("list-background.png") }
 
     static func load() -> MatrixData {
         guard let data = try? Data(contentsOf: file) else { return MatrixData() }
@@ -88,6 +90,7 @@ final class QuadrantView: NSView, NSTextViewDelegate {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = color.cgColor
+        layer?.masksToBounds = true
         layer?.borderColor = NSColor(hex: 0x1C2333).cgColor
         layer?.borderWidth = 2.5
         layer?.cornerRadius = 3
@@ -122,6 +125,12 @@ final class QuadrantView: NSView, NSTextViewDelegate {
         scroll.documentView = textView
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    /// Slightly see-through so a list background shows behind the boxes.
+    func setTranslucent(_ on: Bool) {
+        layer?.backgroundColor = color.withAlphaComponent(on ? 0.86 : 1).cgColor
+        layer?.cornerRadius = on ? 10 : 3
+    }
 
     var text: String {
         get { textView.string }
@@ -205,6 +214,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
     let panel: NSPanel
     private var data = MatrixStore.load()
     private let quads: [QuadrantView]
+    private let grid: MatrixGridView
     var onVisibility: ((Bool) -> Void)?
 
     var isOpen: Bool { panel.isVisible }
@@ -219,6 +229,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 640, height: 460),
                         styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                         backing: .buffered, defer: false)
+        grid = MatrixGridView(quads: quads)
         super.init()
         panel.title = "Rick's List 🧪"
         panel.titlebarAppearsTransparent = true
@@ -232,10 +243,8 @@ final class MatrixController: NSObject, NSWindowDelegate {
         panel.setFrameAutosaveName("MochiMatrix")
         panel.delegate = self
 
-        let grid = MatrixGridView(quads: quads)
-        grid.wantsLayer = true
-        grid.layer?.backgroundColor = NSColor(hex: 0x1C2333).cgColor
         panel.contentView = grid
+        applyBackground(NSImage(contentsOf: MatrixStore.backgroundFile))
 
         for (q, t) in zip(quads, data.boxes) {
             q.text = t
@@ -244,6 +253,27 @@ final class MatrixController: NSObject, NSWindowDelegate {
         data.refreshDueDates()
         MatrixStore.save(data)
         refreshHighlights()
+    }
+
+    /// Copies the picture into place and shows it; nil removes the background.
+    @discardableResult
+    func setBackground(from url: URL?) -> Bool {
+        guard let url else {
+            try? FileManager.default.removeItem(at: MatrixStore.backgroundFile)
+            applyBackground(nil)
+            return true
+        }
+        guard let img = NSImage(contentsOf: url), let tiff = img.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else { return false }
+        try? FileManager.default.createDirectory(at: MatrixStore.dir, withIntermediateDirectories: true)
+        try? png.write(to: MatrixStore.backgroundFile, options: .atomic)
+        applyBackground(img)
+        return true
+    }
+
+    private func applyBackground(_ img: NSImage?) {
+        grid.background = img
+        quads.forEach { $0.setTranslucent(img != nil) }
     }
 
     private func save() {
@@ -305,6 +335,18 @@ final class MatrixController: NSObject, NSWindowDelegate {
 /// Lays the four boxes out in a 2×2 grid with a thin dark gutter, like the original.
 final class MatrixGridView: NSView {
     private let quads: [QuadrantView]
+    var background: NSImage? { didSet { needsLayout = true; needsDisplay = true } }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(hex: 0x1C2333).setFill()
+        bounds.fill()
+        guard let img = background, img.size.width > 0, img.size.height > 0 else { return }
+        // aspect-fill: cover the whole window, cropping the overflow
+        let s = max(bounds.width / img.size.width, bounds.height / img.size.height)
+        let size = NSSize(width: img.size.width * s, height: img.size.height * s)
+        img.draw(in: NSRect(x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2,
+                            width: size.width, height: size.height))
+    }
     init(quads: [QuadrantView]) {
         self.quads = quads
         super.init(frame: .zero)
@@ -314,7 +356,7 @@ final class MatrixGridView: NSView {
 
     override func layout() {
         super.layout()
-        let gap: CGFloat = 4, top: CGFloat = 28   // leave room for the title bar
+        let gap: CGFloat = background == nil ? 4 : 14, top: CGFloat = 28   // wider gutters let the picture show
         let w = (bounds.width - gap * 3) / 2
         let h = (bounds.height - top - gap * 2) / 2
         let frames = [

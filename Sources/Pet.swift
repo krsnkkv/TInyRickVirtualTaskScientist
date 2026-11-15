@@ -612,9 +612,62 @@ final class PetController {
     func start() {
         window.orderFrontRegardless()
         say(Personality.line(.greeting), for: 6)
-        let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in self?.tick() }
+        schedule(1.0 / 60.0)
+    }
+
+    // MARK: hide / show
+
+    /// Hidden Rick does no work at all: the timer stops, nothing animates or checks reminders.
+    func hide() {
+        window.orderOut(nil)
+        timer?.invalidate(); timer = nil; interval = 0
+    }
+
+    func show() {
+        guard !window.isVisible || timer == nil else { return }
+        window.orderFrontRegardless()
+        lastTick = CACurrentMediaTime()
+        touched()
+        schedule(1.0 / 30.0)
+    }
+
+    var isShown: Bool { window.isVisible }
+
+    // MARK: frame rate (keeps CPU low)
+
+    private var interval: TimeInterval = 0
+    private var lastDrawn: [AnyHashable] = []
+
+    private func schedule(_ seconds: TimeInterval) {
+        guard seconds != interval || timer == nil else { return }
+        interval = seconds
+        timer?.invalidate()
+        let t = Timer(timeInterval: seconds, repeats: true) { [weak self] _ in self?.tick() }
+        t.tolerance = seconds * 0.2              // let macOS batch wake-ups
         RunLoop.main.add(t, forMode: .common)
         timer = t
+    }
+
+    /// Smooth only when something is actually moving; slow ticks otherwise.
+    /// Lowest of all when muted and staying still.
+    private var desiredInterval: TimeInterval {
+        switch activity {
+        case .drag, .fall: return 1.0 / 60.0
+        case .walk: return 1.0 / 30.0
+        default: break
+        }
+        if view.squash > 0 { return 1.0 / 30.0 }                 // landing squish
+        if muted && stayStill { return 1.0 / 4.0 }               // lowest-power mode
+        if activity == .sleep { return 1.0 / 6.0 }
+        if view.spriteSet.isEmpty { return 1.0 / 15.0 }           // drawn pet breathes and blinks
+        return 1.0 / 10.0                                          // sprite frames run at 4–6 fps
+    }
+
+    /// What's visible right now; if it hasn't changed since the last frame, skip redrawing.
+    private var visibleState: [AnyHashable] {
+        guard let f = view.spriteFrame else { return [] }            // drawn pet: always redraw
+        return [ObjectIdentifier(f.image), f.flip, view.bubbleText ?? "", view.mood == .thinking,
+                (view.squash * 20).rounded(), view.mood == .walking ? (view.t * 9).rounded() : 0]
     }
 
     func say(_ text: String?, for seconds: Double) {
@@ -665,7 +718,7 @@ final class PetController {
 
     private func tick() {
         let now = CACurrentMediaTime()
-        let dt = min(now - lastTick, 0.05)
+        let dt = min(now - lastTick, 0.5)
         lastTick = now
         view.t += CGFloat(dt)
 
@@ -765,7 +818,12 @@ final class PetController {
         }
 
         view.mood = currentMood()
-        view.needsDisplay = true
+        let state = visibleState
+        if state.isEmpty || state != lastDrawn || view.mood == .dragged || view.mood == .falling {
+            view.needsDisplay = true
+            lastDrawn = state
+        }
+        schedule(desiredInterval)
     }
 
     /// Picks what to do next after standing around.

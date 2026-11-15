@@ -1,4 +1,5 @@
 import Cocoa
+import ServiceManagement
 
 // Rick: a pixel pet that wanders your screen. Click it to open your
 // Urgent/Important list, which is saved automatically.
@@ -30,6 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !open { self.pet.celebrate() }
         }
 
+        // Global shortcuts: ⌃⌘R = restart Rick, ⌃⌘C = open/close the checklist
+        HotKeys.controlCommand(.r) { [weak self] in self?.restart() }
+        HotKeys.controlCommand(.c) { [weak self] in self?.toggleList() }
+
         pet.start()
     }
 
@@ -38,9 +43,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildMenu() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "🧪"
-        menu.addItem(withTitle: "Open My List", action: #selector(openList), keyEquivalent: "").target = self
+        addShortcutItem("Open / Close My List", #selector(toggleList), "c")
         menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Hide / Show Rick", action: #selector(toggleHidden), keyEquivalent: "").target = self
+        addShortcutItem("Restart Rick", #selector(restart), "r")
         menu.addItem(.separator())
         addToggle("Mute Rick", #selector(toggleMute), pet.muted)
         addToggle("Stay Still", #selector(toggleStill), pet.stayStill)
@@ -49,10 +55,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(withTitle: "Choose Sprite…", action: #selector(chooseSprite), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Use Built-in Look", action: #selector(resetSprite), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Choose List Background…", action: #selector(chooseBackground), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Remove List Background", action: #selector(removeBackground), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Show List File in Finder", action: #selector(revealFile), keyEquivalent: "").target = self
         menu.addItem(.separator())
+        addToggle("Start at Login", #selector(toggleLogin), SMAppService.mainApp.status == .enabled)
         menu.addItem(withTitle: "Quit Rick", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
+    }
+
+    /// Menu item that shows its global ⌃⌘ shortcut.
+    private func addShortcutItem(_ title: String, _ action: Selector, _ key: String) {
+        let item = menu.addItem(withTitle: title, action: action, keyEquivalent: key)
+        item.keyEquivalentModifierMask = [.control, .command]
+        item.target = self
+    }
+
+    /// Quit and reopen (fresh start: lands again, re-reads Personality.md and the sprite).
+    @objc private func restart() {
+        matrix.flush()
+        let relaunch = Process()
+        relaunch.executableURL = URL(fileURLWithPath: "/bin/sh")
+        relaunch.arguments = ["-c", "sleep 0.6; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+        try? relaunch.run()
+        NSApp.terminate(nil)
+    }
+
+    @objc private func toggleList() {
+        if matrix.isOpen { matrix.toggle(near: pet.window.frame) } else { openList() }
+    }
+
+    @objc private func toggleLogin(_ item: NSMenuItem) {
+        let service = SMAppService.mainApp
+        do {
+            if service.status == .enabled { try service.unregister() } else { try service.register() }
+        } catch {
+            NSLog("Rick: login item change failed: \(error)")
+        }
+        if service.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+        item.state = service.status == .enabled ? .on : .off
     }
 
     private func addToggle(_ title: String, _ action: Selector, _ on: Bool) {
@@ -75,14 +116,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openList() {
-        if !pet.window.isVisible { pet.window.orderFrontRegardless() }
+        if !pet.isShown { pet.show() }
         matrix.show(near: pet.window.frame)
     }
     @objc private func toggleHidden() {
-        if pet.window.isVisible { pet.window.orderOut(nil) } else { pet.window.orderFrontRegardless() }
+        if pet.isShown {
+            pet.hide()
+        } else {
+            pet.show()
+            pet.say(Personality.line(.summoned), for: 3)
+        }
     }
     @objc private func remind() {
-        if !pet.window.isVisible { pet.window.orderFrontRegardless() }
+        if !pet.isShown { pet.show() }
         if !pet.remindNow() { pet.say(Personality.line(.nothingDue), for: 5) }
     }
     @objc private func chooseSprite() {
@@ -99,6 +145,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             pet.say("Hmm, I couldn't read that image 😕", for: 4)
         }
     }
+    @objc private func chooseBackground() {
+        NSApp.activate(ignoringOtherApps: true)
+        let open = NSOpenPanel()
+        open.allowedContentTypes = [.png, .jpeg, .webP, .heic, .gif]
+        open.message = "Pick a picture to show behind your list."
+        guard open.runModal() == .OK, let url = open.url else { return }
+        if matrix.setBackground(from: url) {
+            openList()
+        } else {
+            pet.say("Hmm, I couldn't read that image 😕", for: 4)
+        }
+    }
+    @objc private func removeBackground() { matrix.setBackground(from: nil) }
+
     @objc private func resetSprite() {
         SpriteStore.remove()
         pet.setSprite(SpriteSet())
