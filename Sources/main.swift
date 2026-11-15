@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func chooseSprite() {
         NSApp.activate(ignoringOtherApps: true)
         let open = NSOpenPanel()
-        open.allowedContentTypes = [.png, .jpeg, .gif]
+        open.allowedContentTypes = [.png, .jpeg, .gif, .webP]
         open.message = "Pick a pixel-art sprite facing right. A solid background is removed automatically."
         guard open.runModal() == .OK, let url = open.url else { return }
         let set = SpriteStore.install(from: url)

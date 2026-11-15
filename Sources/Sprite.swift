@@ -6,42 +6,91 @@ import Cocoa
 /// - A solid background (top-left pixel colour, e.g. white) is made transparent.
 /// - On a sheet, the frame grid is found automatically from how the pixels repeat, partial
 ///   pieces (loose hair, effects…) are skipped, and the frames play as an animation.
-/// - Sprites should face **right**; Rick flips them when walking left.
-/// The animations taken from a sprite: on a sheet, row 1 = standing, row 2 = walking.
+/// - Sprites should face **right**; Rick flips them when walking left (unless a `walkLeft` row exists).
+///
+/// Which row is which animation comes from an optional `sprite.json` next to the sprite, e.g.
+///     { "idle": 1, "walk": 2, "walkLeft": 3, "wave": 4, "sleep": "6:1-2", "sad": "6:3-8" }
+/// Rows are numbered from 1; `"6:1-2"` means frames 1–2 of row 6.
+/// Without it: row 1 = standing, row 2 = walking.
+/// Known names: idle, walk, walkLeft, wave (hovered/happy), jump (dragged/falling), sleep,
+/// sad (overdue reminder), and any others (e.g. music, think) used as random idle moments.
 struct SpriteSet {
-    var idle: [CGImage] = []
-    var walk: [CGImage] = []
+    var anims: [String: [CGImage]] = [:]
+    var idle: [CGImage] { anims["idle"] ?? [] }
+    var walk: [CGImage] { anims["walk"] ?? idle }
     var isEmpty: Bool { idle.isEmpty }
-    var frameCount: Int { idle.count + (walk.count == idle.count && walk.first === idle.first ? 0 : walk.count) }
+    var frameCount: Int { Set(anims.values.flatMap { $0.map { ObjectIdentifier($0) } }).count }
+
+    /// Extra animations played now and then while standing around.
+    var idleExtras: [String] {
+        anims.keys.filter { !["idle", "walk", "walkLeft", "wave", "jump", "sleep", "sad"].contains($0) }.sorted()
+    }
 
     init() {}
-    init(rows: [[CGImage]]) {
+    init(rows: [[CGImage]], mapping: [String: Any]? = nil) {
         let rows = rows.filter { !$0.isEmpty }
-        idle = rows.first ?? []
-        walk = rows.count > 1 && rows[1].count >= 2 ? rows[1] : idle
+        guard !rows.isEmpty else { return }
+        anims["idle"] = rows[0]
+        if rows.count > 1, rows[1].count >= 2 { anims["walk"] = rows[1] }
+        for (name, value) in mapping ?? [:] {
+            if let frames = Self.select(value, from: rows) { anims[name] = frames }
+        }
+    }
+
+    /// 3 → row 3; "6:1-2" → frames 1–2 of row 6 (all 1-based).
+    private static func select(_ value: Any, from rows: [[CGImage]]) -> [CGImage]? {
+        var row: Int?, range: ClosedRange<Int>?
+        if let n = value as? Int { row = n }
+        else if let s = value as? String {
+            let parts = s.split(separator: ":")
+            row = Int(parts[0].trimmingCharacters(in: .whitespaces))
+            if parts.count > 1 {
+                let ends = parts[1].split(separator: "-").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+                if let a = ends.first { range = a...(ends.last ?? a) }
+            }
+        }
+        guard let r = row, rows.indices.contains(r - 1) else { return nil }
+        let frames = rows[r - 1]
+        guard let range else { return frames }
+        let picked = range.compactMap { frames.indices.contains($0 - 1) ? frames[$0 - 1] : nil }
+        return picked.isEmpty ? nil : picked
     }
 }
 
 enum SpriteStore {
     static var file: URL { MatrixStore.dir.appendingPathComponent("sprite.png") }
+    static var mappingFile: URL { MatrixStore.dir.appendingPathComponent("sprite.json") }
 
     static func load() -> SpriteSet {
         guard let img = NSImage(contentsOf: file) else { return SpriteSet() }
-        return SpriteSet(rows: frameRows(from: img))
+        return SpriteSet(rows: frameRows(from: img), mapping: mapping(at: mappingFile))
     }
 
-    /// Copies the chosen image into place (as PNG). Returns its animations, empty if unreadable.
+    private static func mapping(at url: URL) -> [String: Any]? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    /// Copies the chosen image into place (as PNG), plus a same-named .json row mapping if there is one.
+    /// Returns its animations, empty if unreadable.
     static func install(from url: URL) -> SpriteSet {
         guard let img = NSImage(contentsOf: url) else { return SpriteSet() }
-        let set = SpriteSet(rows: frameRows(from: img))
+        let sidecar = url.deletingPathExtension().appendingPathExtension("json")
+        let map = mapping(at: sidecar)
+        let set = SpriteSet(rows: frameRows(from: img), mapping: map)
         guard !set.isEmpty, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { return SpriteSet() }
         try? FileManager.default.createDirectory(at: MatrixStore.dir, withIntermediateDirectories: true)
         try? png.write(to: file, options: .atomic)
+        try? FileManager.default.removeItem(at: mappingFile)
+        if map != nil { try? FileManager.default.copyItem(at: sidecar, to: mappingFile) }
         return set
     }
 
-    static func remove() { try? FileManager.default.removeItem(at: file) }
+    static func remove() {
+        try? FileManager.default.removeItem(at: file)
+        try? FileManager.default.removeItem(at: mappingFile)
+    }
 
     // MARK: - Slicing
 

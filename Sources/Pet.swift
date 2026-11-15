@@ -61,18 +61,34 @@ final class PetView: NSView {
     /// Animations of a custom sprite (empty = draw the built-in character).
     var spriteSet = SpriteSet()
 
-    /// The frame to show right now: walk cycle while walking, standing loop otherwise, still while asleep.
-    var sprite: CGImage? {
-        let idle = spriteSet.idle
-        guard !idle.isEmpty else { return nil }
+    /// A one-off sprite animation (e.g. "sad", "music") playing right now, and when it started.
+    var special: String?
+    var specialStart: CGFloat = 0
+
+    var sprite: CGImage? { spriteFrame?.image }
+
+    /// The frame to show right now, and whether to mirror it (sprites face right).
+    var spriteFrame: (image: CGImage, flip: Bool)? {
+        let a = spriteSet.anims
+        guard let idle = a["idle"], !idle.isEmpty else { return nil }
+        func loop(_ frames: [CGImage], fps: CGFloat, from start: CGFloat = 0) -> CGImage {
+            frames[Int(max(0, t - start) * fps) % frames.count]
+        }
+        let flip = facing < 0
         switch mood {
+        case .dragged, .falling:
+            if let jump = a["jump"] { return (loop(jump, fps: 8), flip) }
+            return (idle[0], flip)
         case .walking:
-            let walk = spriteSet.walk
-            return walk[Int(t * 10) % walk.count]
-        case .sleeping, .falling:
-            return idle[0]
+            if flip, let left = a["walkLeft"] { return (loop(left, fps: 10), false) }
+            return (loop(spriteSet.walk, fps: 10), flip)
+        case .sleeping:
+            if let sleep = a["sleep"] { return (loop(sleep, fps: 0.7), flip) }
+            return (idle[0], flip)
         default:
-            return idle[Int(t * 5) % idle.count]
+            if let s = special, let frames = a[s] { return (loop(frames, fps: 6, from: specialStart), flip) }
+            if mood == .happy, let wave = a["wave"] { return (loop(wave, fps: 6), flip) }
+            return (loop(idle, fps: 4), flip)
         }
     }
 
@@ -217,14 +233,17 @@ final class PetView: NSView {
 
     /// Draws a custom sprite standing at `bottom`, facing the walking direction; returns its top y.
     private func drawSprite(_ img: CGImage, ctx: CGContext, cx: CGFloat, bottom: CGFloat, sx: CGFloat, sy: CGFloat) -> CGFloat {
-        // Whole-number pixel scale on screen keeps pixel art crisp (aim for ~70pt tall).
-        let k = max(1, (70 / CGFloat(img.height)).rounded())
-        let h: CGFloat = CGFloat(img.height) * k / scale * sy
+        // Small pixel art: whole-number scale keeps it crisp (aim for ~70pt tall).
+        // Big art (hi-res sheets): shrink smoothly to ~80pt tall.
+        let target: CGFloat = 80
+        let big = CGFloat(img.height) > target * 1.4
+        let onScreen = big ? target : CGFloat(img.height) * max(1, (70 / CGFloat(img.height)).rounded())
+        let h: CGFloat = onScreen / scale * sy
         let w = h * CGFloat(img.width) / CGFloat(img.height) * sx / sy
         ctx.saveGState()
-        ctx.interpolationQuality = .none
+        ctx.interpolationQuality = big ? .high : .none
         ctx.translateBy(x: cx, y: bottom)
-        if facing < 0 { ctx.scaleBy(x: -1, y: 1) }      // sprites are drawn facing right
+        if spriteFrame?.flip ?? (facing < 0) { ctx.scaleBy(x: -1, y: 1) }
         ctx.draw(img, in: CGRect(x: -w / 2, y: 0, width: w, height: h))
         ctx.restoreGState()
         return bottom + h
@@ -483,6 +502,7 @@ final class PetController {
     private var dragOffset = CGPoint.zero
     private var dragStart = CGPoint.zero
     private var didDrag = false
+    private var specialTime: Double = 0
     private var thrown = false          // dropped by the user (vs. the first fall onto the screen)
     private var timer: Timer?
 
@@ -490,7 +510,7 @@ final class PetController {
     private let walkSpeed: CGFloat = 40
 
     /// Returns something due soon to remind you about (nil if nothing is).
-    var reminder: (() -> String?)?
+    var reminder: (() -> (text: String, overdue: Bool)?)?
     /// How often Rick brings up things that are due soon.
     var reminderInterval: ClosedRange<Double> = (15 * 60)...(25 * 60)
 
@@ -498,11 +518,19 @@ final class PetController {
     /// Shows a due-soon reminder right away (also used by the menu).
     @discardableResult
     func remindNow() -> Bool {
-        guard let text = reminder?() else { return false }
+        guard let r = reminder?() else { return false }
         if activity == .sleep { activity = .idle; activityTime = 3 }
-        say(text, for: 9)
-        happyTime = 2
+        say(r.text, for: 9)
+        if r.overdue { play("sad", for: 6) } else { happyTime = 2 }   // overdue = disappointed, otherwise wave
         return true
+    }
+
+    /// Plays a named sprite animation (if the sprite has it) for a few seconds.
+    func play(_ name: String, for seconds: Double) {
+        guard view.spriteSet.anims[name] != nil else { return }
+        view.special = name
+        view.specialStart = view.t
+        specialTime = seconds
     }
 
     func setSprite(_ set: SpriteSet) {
@@ -606,6 +634,8 @@ final class PetController {
         // bubble + happy timers
         if bubbleTime > 0 { bubbleTime -= dt; if bubbleTime <= 0 { view.bubbleText = nil } }
         if happyTime > 0 { happyTime -= dt }
+        if specialTime > 0 { specialTime -= dt; if specialTime <= 0 { view.special = nil } }
+        if activity == .walk || activity == .drag { view.special = nil; specialTime = 0 }
         if view.squash > 0 { view.squash = max(0, view.squash - CGFloat(dt) * 4) }
 
         let vf = Self.screenFrame(for: window)
@@ -673,6 +703,9 @@ final class PetController {
             if chatterTimer <= 0 {
                 chatterTimer = .random(in: 45...90)
                 say(Personality.line(.idle), for: 5)
+                if let extra = view.spriteSet.idleExtras.randomElement(), Bool.random() {
+                    play(extra, for: .random(in: 4...7))   // e.g. strum the guitar, have a think
+                }
             }
         }
 

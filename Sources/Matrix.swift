@@ -269,14 +269,15 @@ final class MatrixController: NSObject, NSWindowDelegate {
     /// Something worth reminding about: overdue or due within 3 days, most pressing first
     /// (ties go to the more important box). Rotates through them on each call.
     private var reminderCursor = 0
-    func nextReminder() -> String? {
+    func nextReminder() -> (text: String, overdue: Bool)? {
         let soon = data.dueItems
             .filter { $0.daysLeft <= 3 }
             .sorted { ($0.daysLeft, $0.quadrant) < ($1.daysLeft, $1.quadrant) }
         guard !soon.isEmpty else { return nil }
         defer { reminderCursor += 1 }
         // Mostly the most urgent one; every few times, one of the others.
-        return (reminderCursor % 3 == 0 ? soon[0] : soon[reminderCursor % soon.count]).reminder
+        let item = reminderCursor % 3 == 0 ? soon[0] : soon[reminderCursor % soon.count]
+        return (item.reminder, item.daysLeft < 0)
     }
 
     func toggle(near petFrame: NSRect) {
