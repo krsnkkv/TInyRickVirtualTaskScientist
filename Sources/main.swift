@@ -23,8 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pet.reminder = { [weak self] in self?.matrix.nextReminder() }
         pet.setSprite(SpriteStore.load())
         matrix.onVisibility = { [weak self] open in
-            self?.pet.chatOpen = open
-            if !open { self?.pet.celebrate() }
+            guard let self else { return }
+            self.pet.chatOpen = open
+            self.pet.say(Personality.line(open ? .listOpened : .listClosed), for: 3.5)
+            if !open { self.pet.celebrate() }
         }
 
         pet.start()
@@ -56,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func remind() {
         if !pet.window.isVisible { pet.window.orderFrontRegardless() }
-        if !pet.remindNow() { pet.say("Nothing due in the next few days 🎉", for: 4) }
+        if !pet.remindNow() { pet.say(Personality.line(.nothingDue), for: 5) }
     }
     @objc private func chooseSprite() {
         NSApp.activate(ignoringOtherApps: true)
@@ -67,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let set = SpriteStore.install(from: url)
         if !set.isEmpty {
             pet.setSprite(set)
-            pet.say(set.frameCount > 1 ? "New look! ✨ (\(set.frameCount) frames)" : "New look! ✨", for: 3)
+            pet.say(Personality.line(.newSprite), for: 4)
         } else {
             pet.say("Hmm, I couldn't read that image 😕", for: 4)
         }

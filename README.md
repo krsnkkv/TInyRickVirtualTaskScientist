@@ -18,6 +18,9 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 - **Drag Rick** anywhere and it falls back to the floor. Hover and it waves; leave it alone and it wanders or naps.
 - **🧪 menu-bar icon** (or right-click Rick): Open My List, What's Due Soon?, Hide/Show Rick, Choose Sprite…, Use Built-in Look, Show List File in Finder, Quit.
 
+## Personality
+Everything Rick says lives in [`Personality.md`](Personality.md): grumpy-genius snark, but never mean. Each `## section` is a moment (greeting, reminders, being dragged…) and each bullet is a line he might say, with `{item}` and `{when}` filled in. Edit it and rebuild, or drop your own copy at `~/Library/Application Support/MochiPet/Personality.md` and restart Rick.
+
 ## Custom sprite
 **Choose Sprite…** takes a PNG/JPG: either a single image or a whole **sprite sheet**. Sprites should face **right**; Rick flips them when walking left.
 - A solid background colour (taken from the top-left pixel, e.g. white) is removed.

@@ -483,9 +483,10 @@ final class PetController {
     private var dragOffset = CGPoint.zero
     private var dragStart = CGPoint.zero
     private var didDrag = false
+    private var thrown = false          // dropped by the user (vs. the first fall onto the screen)
     private var timer: Timer?
 
-    static let size = NSSize(width: 200, height: 160)
+    static let size = NSSize(width: 230, height: 210)
     private let walkSpeed: CGFloat = 40
 
     /// Returns something due soon to remind you about (nil if nothing is).
@@ -493,17 +494,13 @@ final class PetController {
     /// How often Rick brings up things that are due soon.
     var reminderInterval: ClosedRange<Double> = (15 * 60)...(25 * 60)
 
-    private let chatter = [
-        "Click me to see your list 📝", "*waddle waddle*", "Hehe, just stretching my legs",
-        "One thing at a time 🧪", "You've got this ✨", "Drink some water 💧"
-    ]
 
     /// Shows a due-soon reminder right away (also used by the menu).
     @discardableResult
     func remindNow() -> Bool {
         guard let text = reminder?() else { return false }
         if activity == .sleep { activity = .idle; activityTime = 3 }
-        say(text, for: 8)
+        say(text, for: 9)
         happyTime = 2
         return true
     }
@@ -530,8 +527,13 @@ final class PetController {
         view.onHover = { [weak self] inside in
             guard let self else { return }
             self.hovering = inside
-            if inside, self.activity == .sleep { self.activity = .idle; self.activityTime = 2 }
-            if inside, self.chatMood == nil, !self.chatOpen { self.say("Click to open your list 📝", for: 2.5) }
+            guard inside else { return }
+            if self.activity == .sleep {
+                self.activity = .idle; self.activityTime = 2
+                self.say(Personality.line(.wokeUp), for: 3)
+            } else if self.chatMood == nil, !self.chatOpen, self.bubbleTime <= 0 {
+                self.say(Personality.line(.hover), for: 3)
+            }
         }
         view.onMouseDown = { [weak self] e in self?.mouseDown(e) }
         view.onMouseDragged = { [weak self] e in self?.mouseDragged(e) }
@@ -541,7 +543,7 @@ final class PetController {
 
     func start() {
         window.orderFrontRegardless()
-        say("Hi! I'm Rick 🧪 Click me to open your list!", for: 5)
+        say(Personality.line(.greeting), for: 6)
         let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
@@ -566,14 +568,14 @@ final class PetController {
     private func mouseDragged(_ e: NSEvent) {
         let m = NSEvent.mouseLocation
         if !didDrag, hypot(m.x - dragStart.x, m.y - dragStart.y) < 4 { return }
-        if !didDrag { didDrag = true; say(nil, for: 0) }
+        if !didDrag { didDrag = true; say(Personality.line(.dragged), for: 2.5) }
         activity = .drag
         window.setFrameOrigin(CGPoint(x: m.x - dragOffset.x, y: m.y - dragOffset.y))
     }
 
     private func mouseUp(_ e: NSEvent) {
         if didDrag {
-            activity = .fall; vy = 0
+            activity = .fall; vy = 0; thrown = true
         } else {
             onClick?()
         }
@@ -621,6 +623,8 @@ final class PetController {
             if origin.y <= floorY {
                 origin.y = floorY
                 view.squash = min(1, abs(vy) / 900 + 0.3)
+                if thrown, abs(vy) > 700 { say(Personality.line(.landed), for: 2.5) }
+                thrown = false
                 vy = 0
                 activity = .idle; activityTime = 1.2
             }
@@ -668,7 +672,7 @@ final class PetController {
             chatterTimer -= dt
             if chatterTimer <= 0 {
                 chatterTimer = .random(in: 45...90)
-                say(chatter.randomElement(), for: 4)
+                say(Personality.line(.idle), for: 5)
             }
         }
 

@@ -8,7 +8,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 swiftc -O -swift-version 5 -target arm64-apple-macos13.0 \
-  Sources/Pet.swift Sources/Sprite.swift Sources/DueDates.swift Sources/Matrix.swift Sources/main.swift \
+  Sources/Pet.swift Sources/Personality.swift Sources/Sprite.swift Sources/DueDates.swift Sources/Matrix.swift Sources/main.swift \
   -o "$APP/Contents/MacOS/Rick"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -29,5 +29,6 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
+cp Personality.md "$APP/Contents/Resources/Personality.md"
 codesign --force --sign - "$APP" >/dev/null 2>&1 || true
 echo "Built $APP — run it with: open $APP"

@@ -85,14 +85,7 @@ struct DueItem {
     var daysLeft: Int { DueParser.daysUntil(due) }
 
     /// What Rick says about it.
-    var reminder: String {
-        switch daysLeft {
-        case ..<0: return "⚠️ Overdue (\(DueParser.describe(due))): \(text)"
-        case 0: return "📌 Due today: \(text)"
-        case 1: return "⏰ Due tomorrow: \(text)"
-        default: return "📅 Due \(DueParser.describe(due)): \(text)"
-        }
-    }
+    var reminder: String { Personality.reminder(for: self) }
 }
 
 /// Turns a raw line of a box into the item text (drops the ">>" bullet).
