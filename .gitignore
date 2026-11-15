@@ -4,3 +4,4 @@ Mochi.app/
 *.o
 # Sprite sheets are copyrighted; keep them local
 sprites/
+.idea/
