@@ -20,7 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             NSMenu.popUpContextMenu(self.menu, with: e, for: self.pet.view)
         }
-        pet.urgentItems = { [weak self] in self?.matrix.urgentItems ?? [] }
+        pet.reminder = { [weak self] in self?.matrix.nextReminder() }
+        pet.setSprite(SpriteStore.load())
         matrix.onVisibility = { [weak self] open in
             self?.pet.chatOpen = open
             if !open { self?.pet.celebrate() }
@@ -35,7 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "🌱"
         menu.addItem(withTitle: "Open My List", action: #selector(openList), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Hide / Show Mochi", action: #selector(toggleHidden), keyEquivalent: "").target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Choose Sprite…", action: #selector(chooseSprite), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Use Built-in Mochi", action: #selector(resetSprite), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Show List File in Finder", action: #selector(revealFile), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Mochi", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -48,6 +53,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func toggleHidden() {
         if pet.window.isVisible { pet.window.orderOut(nil) } else { pet.window.orderFrontRegardless() }
+    }
+    @objc private func remind() {
+        if !pet.window.isVisible { pet.window.orderFrontRegardless() }
+        if !pet.remindNow() { pet.say("Nothing due in the next few days 🎉", for: 4) }
+    }
+    @objc private func chooseSprite() {
+        NSApp.activate(ignoringOtherApps: true)
+        let open = NSOpenPanel()
+        open.allowedContentTypes = [.png, .jpeg, .gif]
+        open.message = "Pick a pixel-art sprite facing right. A solid background is removed automatically."
+        guard open.runModal() == .OK, let url = open.url else { return }
+        if let sprite = SpriteStore.install(from: url) {
+            pet.setSprite(sprite)
+            pet.say("New look! ✨", for: 3)
+        } else {
+            pet.say("Hmm, I couldn't read that image 😕", for: 4)
+        }
+    }
+    @objc private func resetSprite() {
+        SpriteStore.remove()
+        pet.setSprite(nil)
     }
     @objc private func revealFile() {
         matrix.flush()

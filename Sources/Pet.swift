@@ -52,7 +52,13 @@ final class PetView: NSView {
     var onRightClick: ((NSEvent) -> Void)?
 
     /// Region that counts as "the pet" for hover.
-    var petRect: NSRect { NSRect(x: bounds.midX - 52, y: 0, width: 104, height: 128) }
+    var petRect: NSRect { NSRect(x: bounds.midX - 52 * scale, y: 0, width: 104 * scale, height: 128 * scale) }
+
+    /// Overall size of the character (1 = original big Mochi).
+    var scale: CGFloat = 0.6 { didSet { updateTrackingAreas() } }
+
+    /// Optional custom sprite (pixel art PNG). When set it replaces the drawn Mochi.
+    var sprite: CGImage?
 
     override var isFlipped: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -72,7 +78,7 @@ final class PetView: NSView {
     override func rightMouseDown(with event: NSEvent) { onRightClick?(event) }
 
     /// Size of one "pixel" of the pixel-art character, in points. 1 = smooth vector look.
-    var pixelSize: CGFloat = 3
+    var pixelSize: CGFloat = 2
 
     override func draw(_ dirtyRect: NSRect) {
         guard let ctx = NSGraphicsContext.current?.cgContext else { return }
@@ -80,9 +86,10 @@ final class PetView: NSView {
 
         // Draw the character into a tiny bitmap, then blow it up with nearest-neighbour
         // scaling so it comes out as chunky pixel art. Speech bubbles stay crisp.
+        // (A custom sprite already is pixel art, so it's drawn directly.)
         let pw = Int(ceil(bounds.width / pixelSize)), ph = Int(ceil(bounds.height / pixelSize))
         var bubbleBottom: CGFloat = 0
-        if pixelSize > 1,
+        if pixelSize > 1, sprite == nil,
            let low = CGContext(data: nil, width: pw, height: ph, bitsPerComponent: 8, bytesPerRow: 0,
                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
@@ -112,6 +119,16 @@ final class PetView: NSView {
 
     /// Draws the creature; returns the y where a speech bubble should start.
     private func drawCharacter(_ ctx: CGContext) -> CGFloat {
+        ctx.saveGState()
+        defer { ctx.restoreGState() }
+        // Everything below is laid out at full size; shrink it around the feet.
+        ctx.translateBy(x: bounds.midX, y: 0)
+        ctx.scaleBy(x: scale, y: scale)
+        ctx.translateBy(x: -bounds.midX, y: 0)
+        return drawCharacterFullSize(ctx) * scale + 10
+    }
+
+    private func drawCharacterFullSize(_ ctx: CGContext) -> CGFloat {
         let cx = bounds.midX
         let ground: CGFloat = 12
         var bob: CGFloat = 0
@@ -163,6 +180,13 @@ final class PetView: NSView {
         ctx.rotate(by: -tilt)
         ctx.translateBy(x: -pivot.x, y: -pivot.y)
 
+        if let sprite {
+            let top = drawSprite(sprite, ctx: ctx, cx: cx, bottom: ground + bob, sx: sx, sy: sy)
+            ctx.restoreGState()
+            if mood == .sleeping { drawZzz(cx: cx, bodyTop: top - 10) }
+            return top + 14
+        }
+
         drawFeet(cx: cx, ground: ground, bob: bob, airborne: airborne)
         drawEars(cx: cx, bodyTop: bodyTop, bodyW: bodyW)
         drawSprout(cx: cx, bodyTop: bodyTop)
@@ -173,6 +197,19 @@ final class PetView: NSView {
 
         if mood == .sleeping { drawZzz(cx: cx, bodyTop: bodyTop) }
         return bodyTop + 26
+    }
+
+    /// Draws a custom sprite standing at `bottom`, facing the walking direction; returns its top y.
+    private func drawSprite(_ img: CGImage, ctx: CGContext, cx: CGFloat, bottom: CGFloat, sx: CGFloat, sy: CGFloat) -> CGFloat {
+        let h: CGFloat = 120 * sy
+        let w = h * CGFloat(img.width) / CGFloat(img.height) * sx / sy
+        ctx.saveGState()
+        ctx.interpolationQuality = .none
+        ctx.translateBy(x: cx, y: bottom)
+        if facing < 0 { ctx.scaleBy(x: -1, y: 1) }      // sprites are drawn facing right
+        ctx.draw(img, in: CGRect(x: -w / 2, y: 0, width: w, height: h))
+        ctx.restoreGState()
+        return bottom + h
     }
 
     // MARK: parts
@@ -422,29 +459,39 @@ final class PetController {
     private var blinkTimer: Double = 3
     private var blinkPhase: Double = 0
     private var bubbleTime: Double = 0
-    private var chatterTimer = Double.random(in: 25...45)
+    private var chatterTimer = Double.random(in: 45...90)
+    private var reminderTimer: Double = 8          // first reminder shortly after launch
     private var lastTick = CACurrentMediaTime()
     private var dragOffset = CGPoint.zero
     private var dragStart = CGPoint.zero
     private var didDrag = false
     private var timer: Timer?
 
-    static let size = NSSize(width: 220, height: 210)
-    private let walkSpeed: CGFloat = 55
+    static let size = NSSize(width: 200, height: 160)
+    private let walkSpeed: CGFloat = 40
 
-    /// Supplies items from the "Urgent & Important" list so Mochi can remind you.
-    var urgentItems: (() -> [String])?
+    /// Returns something due soon to remind you about (nil if nothing is).
+    var reminder: (() -> String?)?
+    /// How often Mochi brings up things that are due soon.
+    var reminderInterval: ClosedRange<Double> = (15 * 60)...(25 * 60)
 
     private let chatter = [
         "Click me to see your list 📝", "*waddle waddle*", "Hehe, just stretching my legs",
-        "One thing at a time 🌱", "You've got this ✨", "Don't forget your list!"
+        "One thing at a time 🌱", "You've got this ✨", "Drink some water 💧"
     ]
 
-    private func nextChatter() -> String? {
-        if let item = urgentItems?().randomElement(), Double.random(in: 0...1) < 0.6 {
-            return "Don't forget: \(item) ⏰"
-        }
-        return chatter.randomElement()
+    /// Shows a due-soon reminder right away (also used by the menu).
+    @discardableResult
+    func remindNow() -> Bool {
+        guard let text = reminder?() else { return false }
+        if activity == .sleep { activity = .idle; activityTime = 3 }
+        say(text, for: 8)
+        happyTime = 2
+        return true
+    }
+
+    func setSprite(_ image: CGImage?) {
+        view.sprite = image
     }
 
     init() {
@@ -585,12 +632,25 @@ final class PetController {
             }
         }
 
+        // every so often: remind about things due soon (wakes Mochi up if needed)
+        if activity != .drag && activity != .fall {
+            reminderTimer -= dt
+            if reminderTimer <= 0 {
+                if chatOpen || hovering {
+                    reminderTimer = 60                       // list is open, try again later
+                } else {
+                    remindNow()
+                    reminderTimer = .random(in: reminderInterval)
+                }
+            }
+        }
+
         // random chatter when wandering
-        if !chatOpen, chatMood == nil, activity != .drag, activity != .sleep {
+        if !chatOpen, chatMood == nil, activity != .drag, activity != .sleep, bubbleTime <= 0 {
             chatterTimer -= dt
             if chatterTimer <= 0 {
-                chatterTimer = .random(in: 25...50)
-                say(nextChatter(), for: 4)
+                chatterTimer = .random(in: 45...90)
+                say(chatter.randomElement(), for: 4)
             }
         }
 

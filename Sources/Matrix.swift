@@ -9,7 +9,49 @@ struct MatrixData: Codable {
     var urgentNotImportant = ""
     var notUrgentImportant = ""
     var notUrgentNotImportant = ""
+    /// Due date for each item, worked out when the item was first written.
+    var dueDates: [String: Date] = [:]
     var updatedAt = Date()
+
+    init() {}
+
+    // Tolerant decoding so files from older versions (or hand edits) never wipe the list.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = MatrixData()
+        urgentImportant = try c.decodeIfPresent(String.self, forKey: .urgentImportant) ?? d.urgentImportant
+        urgentNotImportant = try c.decodeIfPresent(String.self, forKey: .urgentNotImportant) ?? ""
+        notUrgentImportant = try c.decodeIfPresent(String.self, forKey: .notUrgentImportant) ?? ""
+        notUrgentNotImportant = try c.decodeIfPresent(String.self, forKey: .notUrgentNotImportant) ?? ""
+        dueDates = try c.decodeIfPresent([String: Date].self, forKey: .dueDates) ?? [:]
+        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
+
+    var boxes: [String] { [urgentImportant, urgentNotImportant, notUrgentImportant, notUrgentNotImportant] }
+
+    /// Give new items a due date (resolved against *now*), forget items that were deleted.
+    mutating func refreshDueDates(now: Date = Date()) {
+        var seen = Set<String>()
+        for box in boxes {
+            for line in box.split(separator: "\n") {
+                let t = itemText(line)
+                guard !t.isEmpty else { continue }
+                seen.insert(t)
+                if dueDates[t] == nil, let d = DueParser.dueDate(in: t, now: now) { dueDates[t] = d }
+            }
+        }
+        dueDates = dueDates.filter { seen.contains($0.key) }
+    }
+
+    var dueItems: [DueItem] {
+        boxes.enumerated().flatMap { q, box in
+            box.split(separator: "\n").compactMap { line -> DueItem? in
+                let t = itemText(line)
+                guard let d = dueDates[t] else { return nil }
+                return DueItem(text: t, due: d, quadrant: q)
+            }
+        }
+    }
 }
 
 enum MatrixStore {
@@ -86,11 +128,46 @@ final class QuadrantView: NSView, NSTextViewDelegate {
         set { textView.string = newValue }
     }
 
+    private let dueLabel: NSTextField = {
+        let l = NSTextField(labelWithString: "")
+        l.font = .systemFont(ofSize: 11, weight: .semibold)
+        l.alignment = .right
+        return l
+    }()
+
+    /// Colour items by how soon they're due and show the next due date in the header.
+    func highlight(dueDates: [String: Date]) {
+        if dueLabel.superview == nil { addSubview(dueLabel) }
+        guard let lm = textView.layoutManager else { return }
+        let s = textView.string as NSString
+        lm.removeTemporaryAttribute(.foregroundColor, forCharacterRange: NSRange(location: 0, length: s.length))
+        var soonest: Date?
+        s.enumerateSubstrings(in: NSRange(location: 0, length: s.length), options: .byLines) { line, range, _, _ in
+            guard let line, let due = dueDates[itemText(Substring(line))] else { return }
+            if soonest == nil || due < soonest! { soonest = due }
+            let days = DueParser.daysUntil(due)
+            let color: NSColor? = days < 0 ? NSColor(hex: 0xC62828) : days == 0 ? NSColor(hex: 0xD84315)
+                : days <= 2 ? NSColor(hex: 0x9A5B00) : nil
+            if let color { lm.addTemporaryAttribute(.foregroundColor, value: color, forCharacterRange: range) }
+        }
+        if let soonest {
+            let days = DueParser.daysUntil(soonest)
+            dueLabel.stringValue = "⏰ next: \(DueParser.describe(soonest))"
+            dueLabel.textColor = days < 0 ? NSColor(hex: 0xC62828) : days <= 1 ? NSColor(hex: 0xD84315) : NSColor(hex: 0x444444)
+        } else {
+            dueLabel.stringValue = ""
+        }
+        needsLayout = true
+    }
+
     override func layout() {
         super.layout()
         let pad: CGFloat = 12
         titleLabel.sizeToFit()
         titleLabel.frame.origin = CGPoint(x: pad, y: bounds.height - pad - titleLabel.frame.height)
+        dueLabel.sizeToFit()
+        dueLabel.frame.origin = CGPoint(x: bounds.width - pad - dueLabel.frame.width, y: titleLabel.frame.minY + 1)
+        dueLabel.isHidden = dueLabel.frame.minX < titleLabel.frame.maxX + 6
         scroll.frame = NSRect(x: pad, y: pad, width: bounds.width - pad * 2,
                               height: titleLabel.frame.minY - pad - 6)
         textView.frame.size.width = scroll.contentSize.width
@@ -160,11 +237,13 @@ final class MatrixController: NSObject, NSWindowDelegate {
         grid.layer?.backgroundColor = NSColor(hex: 0x1C2333).cgColor
         panel.contentView = grid
 
-        let texts = [data.urgentImportant, data.urgentNotImportant, data.notUrgentImportant, data.notUrgentNotImportant]
-        for (q, t) in zip(quads, texts) {
+        for (q, t) in zip(quads, data.boxes) {
             q.text = t
             q.onChange = { [weak self] in self?.save() }
         }
+        data.refreshDueDates()
+        MatrixStore.save(data)
+        refreshHighlights()
     }
 
     private func save() {
@@ -172,15 +251,32 @@ final class MatrixController: NSObject, NSWindowDelegate {
         data.urgentNotImportant = quads[1].text
         data.notUrgentImportant = quads[2].text
         data.notUrgentNotImportant = quads[3].text
+        data.refreshDueDates()
         data.updatedAt = Date()
         MatrixStore.save(data)
+        refreshHighlights()
     }
 
-    /// Items in the "Urgent & Important" box, for Mochi to nag about.
+    private func refreshHighlights() {
+        quads.forEach { $0.highlight(dueDates: data.dueDates) }
+    }
+
+    /// Items in the "Urgent & Important" box.
     var urgentItems: [String] {
-        quads[0].text.split(separator: "\n")
-            .map { $0.replacingOccurrences(of: ">>", with: "").trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        quads[0].text.split(separator: "\n").map(itemText).filter { !$0.isEmpty }
+    }
+
+    /// Something worth reminding about: overdue or due within 3 days, most pressing first
+    /// (ties go to the more important box). Rotates through them on each call.
+    private var reminderCursor = 0
+    func nextReminder() -> String? {
+        let soon = data.dueItems
+            .filter { $0.daysLeft <= 3 }
+            .sorted { ($0.daysLeft, $0.quadrant) < ($1.daysLeft, $1.quadrant) }
+        guard !soon.isEmpty else { return nil }
+        defer { reminderCursor += 1 }
+        // Mostly the most urgent one; every few times, one of the others.
+        return (reminderCursor % 3 == 0 ? soon[0] : soon[reminderCursor % soon.count]).reminder
     }
 
     func toggle(near petFrame: NSRect) {
@@ -195,6 +291,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
             let y = min(max(petFrame.minY + 150, vf.minY + 8), vf.maxY - size.height - 8)
             panel.setFrameOrigin(CGPoint(x: x, y: y))
         }
+        refreshHighlights()   // "tomorrow" becomes "today" overnight
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         onVisibility?(true)
