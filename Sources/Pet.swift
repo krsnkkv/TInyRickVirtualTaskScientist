@@ -54,11 +54,27 @@ final class PetView: NSView {
     /// Region that counts as "the pet" for hover.
     var petRect: NSRect { NSRect(x: bounds.midX - 52 * scale, y: 0, width: 104 * scale, height: 128 * scale) }
 
-    /// Overall size of the character (1 = original big Mochi).
+    /// Overall size of the character (1 = original big Rick).
     var scale: CGFloat = 0.6 { didSet { updateTrackingAreas() } }
 
-    /// Optional custom sprite (pixel art PNG). When set it replaces the drawn Mochi.
-    var sprite: CGImage?
+    /// Optional custom sprite (pixel art PNG). When set it replaces the drawn Rick.
+    /// Animations of a custom sprite (empty = draw the built-in character).
+    var spriteSet = SpriteSet()
+
+    /// The frame to show right now: walk cycle while walking, standing loop otherwise, still while asleep.
+    var sprite: CGImage? {
+        let idle = spriteSet.idle
+        guard !idle.isEmpty else { return nil }
+        switch mood {
+        case .walking:
+            let walk = spriteSet.walk
+            return walk[Int(t * 10) % walk.count]
+        case .sleeping, .falling:
+            return idle[0]
+        default:
+            return idle[Int(t * 5) % idle.count]
+        }
+    }
 
     override var isFlipped: Bool { false }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -201,7 +217,9 @@ final class PetView: NSView {
 
     /// Draws a custom sprite standing at `bottom`, facing the walking direction; returns its top y.
     private func drawSprite(_ img: CGImage, ctx: CGContext, cx: CGFloat, bottom: CGFloat, sx: CGFloat, sy: CGFloat) -> CGFloat {
-        let h: CGFloat = 120 * sy
+        // Whole-number pixel scale on screen keeps pixel art crisp (aim for ~70pt tall).
+        let k = max(1, (70 / CGFloat(img.height)).rounded())
+        let h: CGFloat = CGFloat(img.height) * k / scale * sy
         let w = h * CGFloat(img.width) / CGFloat(img.height) * sx / sy
         ctx.saveGState()
         ctx.interpolationQuality = .none
@@ -472,12 +490,12 @@ final class PetController {
 
     /// Returns something due soon to remind you about (nil if nothing is).
     var reminder: (() -> String?)?
-    /// How often Mochi brings up things that are due soon.
+    /// How often Rick brings up things that are due soon.
     var reminderInterval: ClosedRange<Double> = (15 * 60)...(25 * 60)
 
     private let chatter = [
         "Click me to see your list 📝", "*waddle waddle*", "Hehe, just stretching my legs",
-        "One thing at a time 🌱", "You've got this ✨", "Drink some water 💧"
+        "One thing at a time 🧪", "You've got this ✨", "Drink some water 💧"
     ]
 
     /// Shows a due-soon reminder right away (also used by the menu).
@@ -490,8 +508,8 @@ final class PetController {
         return true
     }
 
-    func setSprite(_ image: CGImage?) {
-        view.sprite = image
+    func setSprite(_ set: SpriteSet) {
+        view.spriteSet = set
     }
 
     init() {
@@ -523,7 +541,7 @@ final class PetController {
 
     func start() {
         window.orderFrontRegardless()
-        say("Hi! I'm Mochi 🌱 Click me to open your list!", for: 5)
+        say("Hi! I'm Rick 🧪 Click me to open your list!", for: 5)
         let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
@@ -632,7 +650,7 @@ final class PetController {
             }
         }
 
-        // every so often: remind about things due soon (wakes Mochi up if needed)
+        // every so often: remind about things due soon (wakes Rick up if needed)
         if activity != .drag && activity != .fall {
             reminderTimer -= dt
             if reminderTimer <= 0 {

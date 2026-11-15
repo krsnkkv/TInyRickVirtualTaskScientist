@@ -1,59 +1,179 @@
 import Cocoa
 
-/// Custom pixel-art sprite for Mochi, kept at ~/Library/Application Support/MochiPet/sprite.png.
+/// Custom pixel-art sprite for Rick, kept at ~/Library/Application Support/MochiPet/sprite.png.
 ///
-/// Any PNG/JPG works: if the image has a solid background (no transparency), the colour of the
-/// top-left pixel is treated as background and made transparent. Empty margins are trimmed.
-/// Draw the sprite facing **right**; Mochi flips it when walking left.
+/// Works with a single image or a whole sprite sheet:
+/// - A solid background (top-left pixel colour, e.g. white) is made transparent.
+/// - On a sheet, the frame grid is found automatically from how the pixels repeat, partial
+///   pieces (loose hair, effects…) are skipped, and the frames play as an animation.
+/// - Sprites should face **right**; Rick flips them when walking left.
+/// The animations taken from a sprite: on a sheet, row 1 = standing, row 2 = walking.
+struct SpriteSet {
+    var idle: [CGImage] = []
+    var walk: [CGImage] = []
+    var isEmpty: Bool { idle.isEmpty }
+    var frameCount: Int { idle.count + (walk.count == idle.count && walk.first === idle.first ? 0 : walk.count) }
+
+    init() {}
+    init(rows: [[CGImage]]) {
+        let rows = rows.filter { !$0.isEmpty }
+        idle = rows.first ?? []
+        walk = rows.count > 1 && rows[1].count >= 2 ? rows[1] : idle
+    }
+}
+
 enum SpriteStore {
     static var file: URL { MatrixStore.dir.appendingPathComponent("sprite.png") }
 
-    static func load() -> CGImage? {
-        guard let img = NSImage(contentsOf: file) else { return nil }
-        return prepare(img)
+    static func load() -> SpriteSet {
+        guard let img = NSImage(contentsOf: file) else { return SpriteSet() }
+        return SpriteSet(rows: frameRows(from: img))
     }
 
-    /// Copies the chosen image into place. Returns the prepared sprite, or nil if it can't be read.
-    static func install(from url: URL) -> CGImage? {
-        guard let img = NSImage(contentsOf: url), let sprite = prepare(img),
-              let png = NSBitmapImageRep(cgImage: sprite).representation(using: .png, properties: [:]) else { return nil }
+    /// Copies the chosen image into place (as PNG). Returns its animations, empty if unreadable.
+    static func install(from url: URL) -> SpriteSet {
+        guard let img = NSImage(contentsOf: url) else { return SpriteSet() }
+        let set = SpriteSet(rows: frameRows(from: img))
+        guard !set.isEmpty, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { return SpriteSet() }
         try? FileManager.default.createDirectory(at: MatrixStore.dir, withIntermediateDirectories: true)
         try? png.write(to: file, options: .atomic)
-        return sprite
+        return set
     }
 
     static func remove() { try? FileManager.default.removeItem(at: file) }
 
-    /// Keys out a solid background and crops to the visible pixels.
-    static func prepare(_ image: NSImage) -> CGImage? {
-        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
-        let w = cg.width, h = cg.height
-        guard w > 0, h > 0,
-              let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
-                                  space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
-              let buf = ctx.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
-        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+    // MARK: - Slicing
 
-        // Memory row 0 is the top of the image.
-        let bg = (buf[0], buf[1], buf[2], buf[3])
-        let keyOut = bg.3 == 255
-        func close(_ a: UInt8, _ b: UInt8) -> Bool { abs(Int(a) - Int(b)) <= 6 }
+    /// All frames in reading order (handy for tests).
+    static func frames(from image: NSImage) -> [CGImage] { frameRows(from: image).flatMap { $0 } }
 
-        var minX = w, minY = h, maxX = -1, maxY = -1
-        for y in 0..<h {
-            for x in 0..<w {
-                let i = (y * w + x) * 4
-                if keyOut, close(buf[i], bg.0), close(buf[i + 1], bg.1), close(buf[i + 2], bg.2) {
-                    buf[i] = 0; buf[i + 1] = 0; buf[i + 2] = 0; buf[i + 3] = 0
+    /// Frames grouped by sheet row, top row first. A single image gives one row with one frame.
+    static func frameRows(from image: NSImage) -> [[CGImage]] {
+        guard let px = Pixels(image) else { return [] }
+        px.keyOutBackground()
+        guard let all = px.makeImage() else { return [] }
+
+        if let grid = px.detectGrid() {
+            // Cut every cell; keep the ones holding a full-height figure.
+            var cells: [(rect: CGRect, box: CGRect)] = []
+            let bounds = CGRect(x: 0, y: 0, width: px.w, height: px.h)
+            // Start one cell before the offset so edge frames aren't lost; clip cells to the image.
+            var y = grid.oy > 0 ? grid.oy - grid.ch : 0
+            while y < px.h {
+                var x = grid.ox > 0 ? grid.ox - grid.cw : 0
+                while x < px.w {
+                    let r = CGRect(x: x, y: y, width: grid.cw, height: grid.ch)
+                    let clipped = r.intersection(bounds)
+                    if !clipped.isEmpty, let box = px.opaqueBox(in: clipped) { cells.append((r, box)) }
+                    x += grid.cw
                 }
-                if buf[i + 3] > 0 {
-                    minX = min(minX, x); maxX = max(maxX, x)
-                    minY = min(minY, y); maxY = max(maxY, y)
+                y += grid.ch
+            }
+            let tallest = cells.map(\.box.height).max() ?? 0
+            let full = cells.filter { $0.box.height >= tallest * 0.75 }
+            if full.count >= 2 {
+                // One crop box (relative to the cell) shared by all frames, so they don't jitter.
+                var u = CGRect.null
+                for c in full { u = u.union(c.box.offsetBy(dx: -c.rect.minX, dy: -c.rect.minY)) }
+                let rowStarts = Array(Set(full.map { Int($0.rect.minY) })).sorted()
+                return rowStarts.map { y in
+                    full.filter { Int($0.rect.minY) == y }
+                        .compactMap { all.cropping(to: u.offsetBy(dx: $0.rect.minX, dy: $0.rect.minY)) }
                 }
             }
         }
-        guard maxX >= minX, maxY >= minY, let full = ctx.makeImage() else { return nil }
-        return full.cropping(to: CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1))
+        // Single image: crop to the visible pixels.
+        guard let box = px.opaqueBox(in: CGRect(x: 0, y: 0, width: px.w, height: px.h)) else { return [] }
+        return all.cropping(to: box).map { [[$0]] } ?? []
+    }
+}
+
+/// RGBA pixel buffer (row 0 = top of the image) with the helpers the slicer needs.
+private final class Pixels {
+    let w: Int, h: Int
+    private let ctx: CGContext
+    private let b: UnsafeMutablePointer<UInt8>
+
+    init?(_ image: NSImage) {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        w = cg.width; h = cg.height
+        guard w > 0, h > 0,
+              let c = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let data = c.data else { return nil }
+        ctx = c
+        b = data.assumingMemoryBound(to: UInt8.self)
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+    }
+
+    func opaque(_ x: Int, _ y: Int) -> Bool { b[(y * w + x) * 4 + 3] > 0 }
+
+    func keyOutBackground() {
+        let bg = (b[0], b[1], b[2], b[3])
+        guard bg.3 == 255 else { return }       // already transparent
+        func close(_ a: UInt8, _ c: UInt8) -> Bool { abs(Int(a) - Int(c)) <= 8 }
+        for i in stride(from: 0, to: w * h * 4, by: 4)
+        where close(b[i], bg.0) && close(b[i + 1], bg.1) && close(b[i + 2], bg.2) {
+            b[i] = 0; b[i + 1] = 0; b[i + 2] = 0; b[i + 3] = 0
+        }
+    }
+
+    func makeImage() -> CGImage? { ctx.makeImage() }
+
+    func opaqueBox(in r: CGRect) -> CGRect? {
+        var minX = Int.max, minY = Int.max, maxX = -1, maxY = -1
+        for y in Int(r.minY)..<Int(r.maxY) {
+            for x in Int(r.minX)..<Int(r.maxX) where opaque(x, y) {
+                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= 0 else { return nil }
+        return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+    }
+
+    /// Finds a repeating frame grid; nil if the image doesn't look like a sheet.
+    func detectGrid() -> (cw: Int, ch: Int, ox: Int, oy: Int)? {
+        let colP = (0..<w).map { x in Double((0..<h).reduce(0) { $0 + (opaque(x, $1) ? 1 : 0) }) }
+        let rowP = (0..<h).map { y in Double((0..<w).reduce(0) { $0 + (opaque($1, y) ? 1 : 0) }) }
+        guard let cw = Self.period(colP), let ch = Self.period(rowP) else { return nil }
+        let (ox, cutX) = Self.bestOffset(colP, period: cw)
+        let (oy, cutY) = Self.bestOffset(rowP, period: ch)
+        // Real gutters are nearly empty compared with the frames themselves.
+        let avgX = colP.reduce(0, +) / Double(w), avgY = rowP.reduce(0, +) / Double(h)
+        guard cutX < avgX * 0.35, cutY < avgY * 0.35, w / cw * (h / ch) >= 2 else { return nil }
+        return (cw, ch, ox, oy)
+    }
+
+    /// Smallest lag whose autocorrelation is a strong local peak (avoids picking 2× the cell size).
+    private static func period(_ p: [Double]) -> Int? {
+        let minLag = 12, maxLag = p.count / 2
+        guard maxLag > minLag + 1 else { return nil }
+        let mean = p.reduce(0, +) / Double(p.count)
+        let q = p.map { $0 - mean }
+        var v = [Double](repeating: 0, count: maxLag + 2)
+        for lag in minLag...(maxLag + 1) where lag < q.count {
+            var s = 0.0
+            for i in 0..<(q.count - lag) { s += q[i] * q[i + lag] }
+            v[lag] = s / Double(q.count - lag)
+        }
+        let best = v[minLag...maxLag].max() ?? 0
+        guard best > 0 else { return nil }
+        for lag in (minLag + 1)...maxLag where v[lag] >= v[lag - 1] && v[lag] >= v[lag + 1] && v[lag] >= 0.6 * best {
+            return lag
+        }
+        return nil
+    }
+
+    /// Grid offset whose cut lines cross the fewest pixels; returns (offset, average pixels per cut).
+    private static func bestOffset(_ p: [Double], period: Int) -> (Int, Double) {
+        var best = (0, Double.infinity)
+        for o in 0..<period {
+            let cuts = stride(from: o, to: p.count, by: period).map { p[$0] }
+            let avg = cuts.reduce(0, +) / Double(max(cuts.count, 1))
+            if avg < best.1 { best = (o, avg) }
+        }
+        return best
     }
 }

@@ -1,6 +1,6 @@
 import Cocoa
 
-// Mochi: a pixel pet that wanders your screen. Click it to open your
+// Rick: a pixel pet that wanders your screen. Click it to open your
 // Urgent/Important list, which is saved automatically.
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -34,16 +34,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.title = "🌱"
+        statusItem.button?.title = "🧪"
         menu.addItem(withTitle: "Open My List", action: #selector(openList), keyEquivalent: "").target = self
         menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Hide / Show Mochi", action: #selector(toggleHidden), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Hide / Show Rick", action: #selector(toggleHidden), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Choose Sprite…", action: #selector(chooseSprite), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Use Built-in Mochi", action: #selector(resetSprite), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Use Built-in Look", action: #selector(resetSprite), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Show List File in Finder", action: #selector(revealFile), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Mochi", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit Rick", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
     }
 
@@ -64,16 +64,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         open.allowedContentTypes = [.png, .jpeg, .gif]
         open.message = "Pick a pixel-art sprite facing right. A solid background is removed automatically."
         guard open.runModal() == .OK, let url = open.url else { return }
-        if let sprite = SpriteStore.install(from: url) {
-            pet.setSprite(sprite)
-            pet.say("New look! ✨", for: 3)
+        let set = SpriteStore.install(from: url)
+        if !set.isEmpty {
+            pet.setSprite(set)
+            pet.say(set.frameCount > 1 ? "New look! ✨ (\(set.frameCount) frames)" : "New look! ✨", for: 3)
         } else {
             pet.say("Hmm, I couldn't read that image 😕", for: 4)
         }
     }
     @objc private func resetSprite() {
         SpriteStore.remove()
-        pet.setSprite(nil)
+        pet.setSprite(SpriteSet())
     }
     @objc private func revealFile() {
         matrix.flush()

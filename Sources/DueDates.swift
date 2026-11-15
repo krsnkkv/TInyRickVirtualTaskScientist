@@ -84,7 +84,7 @@ struct DueItem {
     let quadrant: Int        // 0 = Urgent & Important … 3 = Not Urgent & Not Important
     var daysLeft: Int { DueParser.daysUntil(due) }
 
-    /// What Mochi says about it.
+    /// What Rick says about it.
     var reminder: String {
         switch daysLeft {
         case ..<0: return "⚠️ Overdue (\(DueParser.describe(due))): \(text)"

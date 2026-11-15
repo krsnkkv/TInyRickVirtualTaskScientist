@@ -220,7 +220,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
                         styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                         backing: .buffered, defer: false)
         super.init()
-        panel.title = "Mochi's List 🌱"
+        panel.title = "Rick's List 🧪"
         panel.titlebarAppearsTransparent = true
         panel.appearance = NSAppearance(named: .aqua)
         panel.isFloatingPanel = true
