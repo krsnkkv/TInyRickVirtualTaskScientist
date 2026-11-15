@@ -31,8 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !open { self.pet.celebrate() }
         }
 
-        // Global shortcuts: ⌃⌘R = restart Rick, ⌃⌘C = open/close the checklist
-        HotKeys.controlCommand(.r) { [weak self] in self?.restart() }
+        // Global shortcuts: ⌃⌘R = send Rick away / bring him back, ⌃⌘C = open/close the checklist
+        HotKeys.controlCommand(.r) { [weak self] in self?.toggleHidden() }
         HotKeys.controlCommand(.c) { [weak self] in self?.toggleList() }
 
         pet.start()
@@ -45,8 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.title = "🧪"
         addShortcutItem("Open / Close My List", #selector(toggleList), "c")
         menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Hide / Show Rick", action: #selector(toggleHidden), keyEquivalent: "").target = self
-        addShortcutItem("Restart Rick", #selector(restart), "r")
+        addShortcutItem("Hide / Show Rick", #selector(toggleHidden), "r")
+        menu.addItem(withTitle: "Restart Rick", action: #selector(restart), keyEquivalent: "").target = self
         menu.addItem(.separator())
         addToggle("Mute Rick", #selector(toggleMute), pet.muted)
         addToggle("Stay Still", #selector(toggleStill), pet.stayStill)

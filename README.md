@@ -11,10 +11,10 @@ Builds Rick, installs him to `~/Applications` (so Spotlight finds him and **Star
 
 ## Shortcuts & commands
 - **⌃⌘C**: open/close your list (works from any app)
-- **⌃⌘R**: restart Rick (quit and reopen)
+- **⌃⌘R**: send Rick away / bring him back (while away he does no work at all)
 - `rick` / `rick stop` / `rick restart` / `rick status` in the terminal
 - **Start at Login** in the 🧪 menu keeps him around after a reboot
-- **Hide / Show Rick** in the 🧪 menu: while hidden he does no work at all (no animation, no reminders)
+- **Restart Rick** in the 🧪 menu quits and reopens him (re-reads Personality.md and the sprite)
 
 Needs only the Xcode command-line tools (native Swift/AppKit, no other dependencies).
 
