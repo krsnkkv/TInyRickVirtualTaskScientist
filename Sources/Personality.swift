@@ -6,6 +6,7 @@ enum Moment: String, CaseIterable {
     case nothingDue = "nothing due", dragged, landed
     case listOpened = "list opened", listClosed = "list closed"
     case wokeUp = "woke up", newSprite = "new sprite", lonely, summoned
+    case rundownStart = "rundown start", rundownEnd = "rundown end", rundownEmpty = "rundown empty"
 }
 
 /// What the pet says, loaded from Personality.md.
@@ -90,5 +91,8 @@ enum Personality {
         .newSprite: ["New body. Same genius."],
         .lonely: ["Don't forget your to-do list, please!"],
         .summoned: ["You rang?"],
+        .rundownStart: ["Fine. Here's the damage."],
+        .rundownEnd: ["That's everything. Go."],
+        .rundownEmpty: ["Your list is empty. Suspicious."],
     ]
 }

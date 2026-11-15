@@ -11,6 +11,8 @@ struct MatrixData: Codable {
     var notUrgentNotImportant = ""
     /// Due date for each item, worked out when the item was first written.
     var dueDates: [String: Date] = [:]
+    /// Items marked done (struck through, ⌘⇧X). They stay in the list but aren't nagged about.
+    var completed: Set<String> = []
     var updatedAt = Date()
 
     init() {}
@@ -24,6 +26,7 @@ struct MatrixData: Codable {
         notUrgentImportant = try c.decodeIfPresent(String.self, forKey: .notUrgentImportant) ?? ""
         notUrgentNotImportant = try c.decodeIfPresent(String.self, forKey: .notUrgentNotImportant) ?? ""
         dueDates = try c.decodeIfPresent([String: Date].self, forKey: .dueDates) ?? [:]
+        completed = try c.decodeIfPresent(Set<String>.self, forKey: .completed) ?? []
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
     }
 
@@ -41,13 +44,39 @@ struct MatrixData: Codable {
             }
         }
         dueDates = dueDates.filter { seen.contains($0.key) }
+        completed = completed.filter { seen.contains($0) }
+    }
+
+    /// Rewrites "tomorrow"/"today"/"yesterday" (and passed weekdays) so they stay true.
+    /// Returns true if any text changed.
+    mutating func rollRelativeWords(now: Date = Date()) -> Bool {
+        var changed = false
+        func roll(_ box: String) -> String {
+            box.components(separatedBy: "\n").map { line in
+                let t = itemText(Substring(line))
+                guard let due = dueDates[t] else { return line }
+                let newLine = DueParser.rollRelativeWords(in: line, due: due, now: now)
+                guard newLine != line else { return line }
+                changed = true
+                let newT = itemText(Substring(newLine))
+                dueDates[newT] = due                                  // keep the original due date
+                if completed.contains(t) { completed.insert(newT) }
+                return newLine
+            }.joined(separator: "\n")
+        }
+        urgentImportant = roll(urgentImportant)
+        urgentNotImportant = roll(urgentNotImportant)
+        notUrgentImportant = roll(notUrgentImportant)
+        notUrgentNotImportant = roll(notUrgentNotImportant)
+        if changed { refreshDueDates(now: now) }
+        return changed
     }
 
     var dueItems: [DueItem] {
         boxes.enumerated().flatMap { q, box in
             box.split(separator: "\n").compactMap { line -> DueItem? in
                 let t = itemText(line)
-                guard let d = dueDates[t] else { return nil }
+                guard let d = dueDates[t], !completed.contains(t) else { return nil }
                 return DueItem(text: t, due: d, quadrant: q)
             }
         }
@@ -56,7 +85,8 @@ struct MatrixData: Codable {
 
 enum MatrixStore {
     static var dir: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MochiPet")
+        if let custom = ProcessInfo.processInfo.environment["RICK_DATA_DIR"] { return URL(fileURLWithPath: custom) }   // tests
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("MochiPet")
     }
     static var file: URL { dir.appendingPathComponent("matrix.json") }
     /// Optional picture shown behind the four boxes.
@@ -77,8 +107,14 @@ enum MatrixStore {
 
 // MARK: - One coloured quadrant
 
+/// The text area of a box; ⌘⇧X (Edit ▸ Mark Done) toggles strikethrough on the selected items.
+final class ListTextView: NSTextView {
+    var onToggleDone: ((NSRange) -> Void)?
+    @objc func toggleDone(_ sender: Any?) { onToggleDone?(selectedRange()) }
+}
+
 final class QuadrantView: NSView, NSTextViewDelegate {
-    let textView = NSTextView()
+    let textView = ListTextView()
     private let titleLabel: NSTextField
     private let scroll = NSScrollView()
     private let color: NSColor
@@ -145,14 +181,23 @@ final class QuadrantView: NSView, NSTextViewDelegate {
     }()
 
     /// Colour items by how soon they're due and show the next due date in the header.
-    func highlight(dueDates: [String: Date]) {
+    func highlight(dueDates: [String: Date], completed: Set<String> = []) {
         if dueLabel.superview == nil { addSubview(dueLabel) }
         guard let lm = textView.layoutManager else { return }
         let s = textView.string as NSString
-        lm.removeTemporaryAttribute(.foregroundColor, forCharacterRange: NSRange(location: 0, length: s.length))
+        let all = NSRange(location: 0, length: s.length)
+        lm.removeTemporaryAttribute(.foregroundColor, forCharacterRange: all)
+        lm.removeTemporaryAttribute(.strikethroughStyle, forCharacterRange: all)
         var soonest: Date?
-        s.enumerateSubstrings(in: NSRange(location: 0, length: s.length), options: .byLines) { line, range, _, _ in
-            guard let line, let due = dueDates[itemText(Substring(line))] else { return }
+        s.enumerateSubstrings(in: all, options: .byLines) { line, range, _, _ in
+            guard let line else { return }
+            let item = itemText(Substring(line))
+            if completed.contains(item) {                       // done: grey + struck through
+                lm.addTemporaryAttributes([.strikethroughStyle: NSUnderlineStyle.single.rawValue,
+                                           .foregroundColor: NSColor(hex: 0x000000, alpha: 0.4)], forCharacterRange: range)
+                return
+            }
+            guard let due = dueDates[item] else { return }
             if soonest == nil || due < soonest! { soonest = due }
             let days = DueParser.daysUntil(due)
             let color: NSColor? = days < 0 ? NSColor(hex: 0xC62828) : days == 0 ? NSColor(hex: 0xD84315)
@@ -246,10 +291,18 @@ final class MatrixController: NSObject, NSWindowDelegate {
         panel.contentView = grid
         applyBackground(NSImage(contentsOf: MatrixStore.backgroundFile))
 
+        _ = data.rollRelativeWords()
         for (q, t) in zip(quads, data.boxes) {
             q.text = t
             q.onChange = { [weak self] in self?.save() }
+            q.textView.onToggleDone = { [weak self, weak q] range in
+                guard let self, let q else { return }
+                self.toggleDone(in: q, range: range)
+            }
         }
+        // keep "tomorrow"/"today" true: at midnight and when the Mac wakes up
+        NotificationCenter.default.addObserver(self, selector: #selector(dayMayHaveChanged), name: .NSCalendarDayChanged, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(dayMayHaveChanged), name: NSWorkspace.didWakeNotification, object: nil)
         data.refreshDueDates()
         MatrixStore.save(data)
         refreshHighlights()
@@ -288,12 +341,79 @@ final class MatrixController: NSObject, NSWindowDelegate {
     }
 
     private func refreshHighlights() {
-        quads.forEach { $0.highlight(dueDates: data.dueDates) }
+        quads.forEach { $0.highlight(dueDates: data.dueDates, completed: data.completed) }
+    }
+
+    @objc private func dayMayHaveChanged() {
+        DispatchQueue.main.async { self.rollWords() }
+    }
+
+    /// Rewrites date words that went stale and puts the new text in the boxes.
+    private func rollWords() {
+        save()                                           // pick up anything being typed first
+        guard data.rollRelativeWords() else { refreshHighlights(); return }
+        for (q, t) in zip(quads, data.boxes) where q.text != t { q.text = t }
+        MatrixStore.save(data)
+        refreshHighlights()
+    }
+
+    /// ⌘⇧X: strike through (or un-strike) every item touched by the selection.
+    private func toggleDone(in q: QuadrantView, range: NSRange) {
+        save()
+        let s = q.text as NSString
+        guard s.length > 0 else { return }
+        let r = s.lineRange(for: NSRange(location: min(range.location, s.length - 1), length: range.length))
+        let items = s.substring(with: r).split(separator: "\n").map(itemText).filter { !$0.isEmpty }
+        guard !items.isEmpty else { return }
+        if items.allSatisfy(data.completed.contains) {
+            items.forEach { data.completed.remove($0) }
+        } else {
+            items.forEach { data.completed.insert($0) }
+        }
+        data.updatedAt = Date()
+        MatrixStore.save(data)
+        refreshHighlights()
     }
 
     /// Items in the "Urgent & Important" box.
     var urgentItems: [String] {
         quads[0].text.split(separator: "\n").map(itemText).filter { !$0.isEmpty }
+    }
+
+    static let boxNames = ["Urgent & Important", "Urgent & Not Important", "Not Urgent & Important", "Not Urgent & Not Important"]
+    static let boxEmoji = ["🟨", "🟩", "🟥", "🟦"]
+
+    /// Every item, box by box (U&I, U&NI, NU&I, NU&NI); inside a box, dated items by due date
+    /// (overdue first), then undated ones in the order you wrote them. One speech bubble each.
+    func rundown() -> [String] {
+        var out: [String] = []
+        for (q, box) in data.boxes.enumerated() {
+            let items = box.split(separator: "\n").map(itemText).filter { !$0.isEmpty && !data.completed.contains($0) }
+            let dated = items.compactMap { t in data.dueDates[t].map { (t, $0) } }.sorted { $0.1 < $1.1 }
+            let undated = items.filter { data.dueDates[$0] == nil }
+            for (i, (text, due)) in dated.enumerated() {
+                out.append(line(q, first: i == 0, "\(DueParser.stripDateWords(text)) · \(Self.dueWords(due))"))
+            }
+            for (i, text) in undated.enumerated() {
+                out.append(line(q, first: dated.isEmpty && i == 0, text))
+            }
+        }
+        return out
+    }
+
+    private func line(_ q: Int, first: Bool, _ body: String) -> String {
+        "\(Self.boxEmoji[q]) \(Self.boxNames[q])\n\(body)"
+    }
+
+    /// "due today", "due tomorrow", "due Thursday", "1 day late", "3 days late".
+    static func dueWords(_ due: Date) -> String {
+        let d = DueParser.daysUntil(due)
+        switch d {
+        case ..<(-1): return "\(-d) days late ⚠️"
+        case -1: return "was due yesterday ⚠️"
+        case 0: return "due TODAY"
+        default: return "due \(DueParser.describe(due))"
+        }
     }
 
     /// Something worth reminding about: overdue or due within 3 days, most pressing first
@@ -322,7 +442,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
             let y = min(max(petFrame.minY + 150, vf.minY + 8), vf.maxY - size.height - 8)
             panel.setFrameOrigin(CGPoint(x: x, y: y))
         }
-        refreshHighlights()   // "tomorrow" becomes "today" overnight
+        rollWords()           // "tomorrow" becomes "today" overnight
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         onVisibility?(true)

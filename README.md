@@ -14,15 +14,17 @@ Builds Rick, installs him to `~/Applications` (so Spotlight finds him and **Star
 - **⌃⌘R**: send Rick away / bring him back (while away he does no work at all)
 - `rick` / `rick stop` / `rick restart` / `rick status` in the terminal
 - **Start at Login** in the 🧪 menu keeps him around after a reboot
-- **Restart Rick** in the 🧪 menu quits and reopens him (re-reads Personality.md and the sprite)
+- **Options** submenu: sprite, list background, show list file, Start at Login, and **Restart Rick**, which quits and reopens him (re-reads Personality.md and the sprite)
 
 Needs only the Xcode command-line tools (native Swift/AppKit, no other dependencies).
 
 ## Using it
 - **Click Rick** to open or close your list. Click inside a box and start typing; **Enter** starts a new `>>` item, and pressing Enter on an empty item removes the bullet.
 - **Due dates are picked up automatically** from what you write: `today`, `tomorrow`, a weekday (`Thursday`, `this thu` = the coming one, today counts), `next thursday` (the week after), or a date like `20 Nov`. A weekday is fixed to a real date when you write it, so "Thursday" written on Sunday doesn't roll over to next week.
+- **Mark things done with ⌘⇧X:** select one or more items and press ⌘⇧X to strike them through (again to undo). Done items stay in the list, greyed out, and Rick stops nagging about them. ⌘C/⌘V/⌘Z work in the list too.
+- **Date words stay true:** "by tomorrow" becomes "by today" after midnight, then "by yesterday", then the actual date ("by Mon 16 Nov"). A weekday that has passed turns into its date as well.
 - Items due soon are coloured (red = overdue, orange = today, amber = within 2 days), and each box shows its next due date.
-- **Reminders:** every 15–25 minutes Rick brings up something overdue or due within 3 days, waking up if it's napping. **What's Due Soon?** in the menu asks right away.
+- **Reminders:** every 15–25 minutes Rick brings up something overdue or due within 3 days, waking up if it's napping. **What's Due Soon?** in the menu makes Rick read out your whole list, one bubble per item: Urgent & Important first, then Urgent & Not Important, Not Urgent & Important, Not Urgent & Not Important. Each box is sorted by due date, and done items are skipped.
 - **Drag Rick** anywhere and it falls back to the floor. Hover and it waves; leave it alone and it wanders or naps.
 - **🧪 menu-bar icon** (or right-click Rick): Open My List, What's Due Soon?, Hide/Show Rick, the options below, Choose Sprite…, Use Built-in Look, Show List File in Finder, Quit.
 
@@ -32,7 +34,7 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 - **Anti-Gravity**: he stays wherever you drop him instead of falling to the floor.
 - **ADHD Mode**: hops and zooms around and never naps.
 
-If you leave Rick alone for 10 minutes he gets sad, nags you about your to-do list, and stays slumped until you hover, click or drag him.
+**Loner Rick** (next to ADHD Mode) shows this right away: if you leave Rick alone for 10 minutes he gets sad, nags you about your to-do list, and stays slumped until you hover, click or drag him.
 Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
 
 ## List background

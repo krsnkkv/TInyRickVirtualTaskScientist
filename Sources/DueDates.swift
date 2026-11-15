@@ -56,6 +56,39 @@ enum DueParser {
         return nil
     }
 
+    /// Keeps relative date words true as days pass, using the date the item was resolved to:
+    /// "Pay fees by tomorrow" → (next day) "by today" → "by yesterday" → "by Mon 16 Nov".
+    /// A weekday word whose date has passed becomes "yesterday" / the date too.
+    static func rollRelativeWords(in line: String, due: Date, now: Date = Date()) -> String {
+        let d = daysUntil(due, now: now)
+        let word: String = d == 1 ? "tomorrow" : d == 0 ? "today" : d == -1 ? "yesterday" : {
+            let f = DateFormatter(); f.dateFormat = "EEE d MMM"; return f.string(from: due)
+        }()
+        func matchCase(_ original: String, _ replacement: String) -> String {
+            if original.count > 1, original == original.uppercased() { return replacement.uppercased() }
+            if original.first?.isUppercase == true { return replacement.prefix(1).uppercased() + replacement.dropFirst() }
+            return replacement
+        }
+        func replaceFirst(_ pattern: String, in s: String, capitalize: Bool = true, when keep: (String) -> Bool) -> String {
+            guard let re = try? NSRegularExpression(pattern: pattern),
+                  let m = re.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)),
+                  let r = Range(m.range, in: s) else { return s }
+            let found = String(s[r])
+            if keep(found.lowercased()) { return s }
+            let replacement = capitalize || found == found.uppercased() ? matchCase(found, word) : word
+            return s.replacingCharacters(in: r, with: replacement)
+        }
+        let offsets = ["today": 0, "tonight": 0, "eod": 0, "tomorrow": 1, "tmrw": 1, "tmr": 1, "yesterday": -1]
+        var out = replaceFirst("(?i)\\b(today|tonight|eod|tomorrow|tmrw|tmr|yesterday)\\b", in: line) { offsets[$0] == d }
+        if d < 0 {
+            let days = "monday|mon|tuesday|tues|tue|wednesday|weds|wed|thursday|thurs|thur|thu|friday|fri|saturday|sunday"
+            // weekday names are always capitalised, so don't turn "by Thursday" into "by Yesterday";
+            // skip ones already followed by a date ("Mon 16 Nov")
+            out = replaceFirst("(?i)\\b((this|next)\\s+)?(\(days))\\b(?!\\s+[0-9])", in: out, capitalize: false) { _ in false }
+        }
+        return out
+    }
+
     /// The item without its due-date words, so reminders don't repeat them:
     /// "Cross check MLS by tomorrow!" → "Cross check MLS", "Essay due next thu" → "Essay".
     static func stripDateWords(_ text: String) -> String {
@@ -63,7 +96,7 @@ enum DueParser {
         let days = "monday|mon|tuesday|tues|tue|wednesday|weds|wed|thursday|thurs|thur|thu|friday|fri|saturday|sunday"
         let ordinal = "[0-9]{1,2}(st|nd|rd|th)?"
         let date = "[0-9]{1,2}/[0-9]{1,2}(/[0-9]{2,4})?"
-            + "|today|tonight|eod|tomorrow|tmrw|tmr|((this|next)\\s+)?(\(days))"
+            + "|today|tonight|eod|tomorrow|tmrw|tmr|yesterday|((this|next)\\s+)?(\(days))"
             + "|(the\\s+)?\(ordinal)(\\s+(of\\s+)?(\(months)))?"
             + "|(\(months))\\s+\(ordinal)"
         let pattern = "(?i)\\s*\\b((by|on|due|before|until|for|this)\\s+)*(\(date))\\b"

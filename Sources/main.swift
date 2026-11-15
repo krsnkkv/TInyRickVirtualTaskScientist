@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
+        buildEditMenu()
 
         pet.onClick = { [weak self] in
             guard let self else { return }
@@ -40,27 +41,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) { matrix.flush() }
 
+    /// A (hidden) main menu so the usual editing shortcuts work in the list, plus ⌘⇧X = mark done.
+    private func buildEditMenu() {
+        let main = NSMenu()
+        let appItem = main.addItem(withTitle: "Rick", action: nil, keyEquivalent: "")
+        appItem.submenu = NSMenu(title: "Rick")
+        appItem.submenu?.addItem(withTitle: "Quit Rick", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Mark Done / Not Done", action: #selector(ListTextView.toggleDone(_:)), keyEquivalent: "X")
+        main.addItem(withTitle: "Edit", action: nil, keyEquivalent: "").submenu = edit
+        NSApp.mainMenu = main
+    }
+
     private func buildMenu() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = "🧪"
         addShortcutItem("Open / Close My List", #selector(toggleList), "c")
         menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
         addShortcutItem("Hide / Show Rick", #selector(toggleHidden), "r")
-        menu.addItem(withTitle: "Restart Rick", action: #selector(restart), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Demo: Sad Rick", action: #selector(demoSad), keyEquivalent: "").target = self
         menu.addItem(.separator())
         addToggle("Mute Rick", #selector(toggleMute), pet.muted)
         addToggle("Stay Still", #selector(toggleStill), pet.stayStill)
         addToggle("Anti-Gravity", #selector(toggleGravity), pet.antiGravity)
         addToggle("ADHD Mode", #selector(toggleADHD), pet.adhd)
+        menu.addItem(withTitle: "Loner Rick", action: #selector(demoSad), keyEquivalent: "").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Choose Sprite…", action: #selector(chooseSprite), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Use Built-in Look", action: #selector(resetSprite), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Choose List Background…", action: #selector(chooseBackground), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Remove List Background", action: #selector(removeBackground), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Show List File in Finder", action: #selector(revealFile), keyEquivalent: "").target = self
+
+        // Options: set-and-forget stuff, tucked away
+        let options = NSMenu(title: "Options")
+        func add(_ title: String, _ action: Selector) { options.addItem(withTitle: title, action: action, keyEquivalent: "").target = self }
+        add("Choose Sprite…", #selector(chooseSprite))
+        add("Use Built-in Look", #selector(resetSprite))
+        options.addItem(.separator())
+        add("Choose List Background…", #selector(chooseBackground))
+        add("Remove List Background", #selector(removeBackground))
+        add("Show List File in Finder", #selector(revealFile))
+        options.addItem(.separator())
+        let login = options.addItem(withTitle: "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
+        login.target = self
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        add("Restart Rick", #selector(restart))
+        menu.addItem(withTitle: "Options", action: nil, keyEquivalent: "").submenu = options
+
         menu.addItem(.separator())
-        addToggle("Start at Login", #selector(toggleLogin), SMAppService.mainApp.status == .enabled)
         menu.addItem(withTitle: "Quit Rick", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
     }
@@ -82,7 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
-    /// Shows the "ignored for a while" sulk right away. Hover or click Rick to cheer him up.
+    /// Loner Rick: the "ignored for a while" sulk, right now. Hover or click him to cheer him up.
     @objc private func demoSad() {
         if !pet.isShown { pet.show() }
         // Wait for the menu to close (and the mouse to leave him), or the hover would cancel it at once.
@@ -137,7 +168,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func remind() {
         if !pet.isShown { pet.show() }
-        if !pet.remindNow() { pet.say(Personality.line(.nothingDue), for: 5) }
+        let items = matrix.rundown()
+        if items.isEmpty {
+            pet.sayInOrder([Personality.line(.rundownEmpty)], each: 4)
+        } else {
+            pet.sayInOrder([Personality.line(.rundownStart)] + items + [Personality.line(.rundownEnd)], each: 3.5)
+        }
     }
     @objc private func chooseSprite() {
         NSApp.activate(ignoringOtherApps: true)

@@ -670,8 +670,30 @@ final class PetController {
                 (view.squash * 20).rounded(), view.mood == .walking ? (view.t * 9).rounded() : 0]
     }
 
+    /// Lines waiting to be said one after another (e.g. reading out the list).
+    private var queue: [(text: String, seconds: Double)] = []
+
+    /// Says each line in turn. Explicitly asked for, so it shows even when muted.
+    func sayInOrder(_ lines: [String], each seconds: Double = 3.5) {
+        queue = lines.map { ($0, seconds) }
+        bubbleTime = 0
+        if activity == .walk || activity == .sleep { activity = .idle }
+        activityTime = Double(lines.count) * seconds + 1     // stand still while talking
+        nextInQueue()
+    }
+
+    private func nextInQueue() {
+        guard !queue.isEmpty else { return }
+        let next = queue.removeFirst()
+        view.bubbleText = next.text
+        bubbleTime = next.seconds
+    }
+
+    var isReadingList: Bool { !queue.isEmpty }
+
     func say(_ text: String?, for seconds: Double) {
         if muted, text != nil { return }
+        if !queue.isEmpty, text != nil { return }           // don't interrupt a rundown
         view.bubbleText = text
         bubbleTime = seconds
     }
@@ -731,7 +753,10 @@ final class PetController {
             if blinkPhase > 0.18 { blinkPhase = 0; view.blink = 0 }
         }
         // bubble + happy timers
-        if bubbleTime > 0 { bubbleTime -= dt; if bubbleTime <= 0 { view.bubbleText = nil } }
+        if bubbleTime > 0 {
+            bubbleTime -= dt
+            if bubbleTime <= 0 { view.bubbleText = nil; nextInQueue() }
+        }
         if happyTime > 0 { happyTime -= dt }
         if specialTime > 0 { specialTime -= dt; if specialTime <= 0 { view.special = nil } }
         if activity == .walk || activity == .drag { view.special = nil; specialTime = 0 }
