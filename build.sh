@@ -8,7 +8,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 swiftc -O -swift-version 5 -target arm64-apple-macos13.0 \
-  Sources/Pet.swift Sources/Claude.swift Sources/main.swift \
+  Sources/Pet.swift Sources/Matrix.swift Sources/main.swift \
   -o "$APP/Contents/MacOS/Mochi"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'

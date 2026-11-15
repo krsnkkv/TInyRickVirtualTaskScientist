@@ -432,11 +432,20 @@ final class PetController {
     static let size = NSSize(width: 220, height: 210)
     private let walkSpeed: CGFloat = 55
 
+    /// Supplies items from the "Urgent & Important" list so Mochi can remind you.
+    var urgentItems: (() -> [String])?
+
     private let chatter = [
-        "Need help? Click me! 👋", "Ask me anything ✨", "*waddle waddle*",
-        "Psst… I can help with that", "I'm here if you're stuck 🌱", "Stuck on something?",
-        "Hehe, just stretching my legs", "Want to chat?"
+        "Click me to see your list 📝", "*waddle waddle*", "Hehe, just stretching my legs",
+        "One thing at a time 🌱", "You've got this ✨", "Don't forget your list!"
     ]
+
+    private func nextChatter() -> String? {
+        if let item = urgentItems?().randomElement(), Double.random(in: 0...1) < 0.6 {
+            return "Don't forget: \(item) ⏰"
+        }
+        return chatter.randomElement()
+    }
 
     init() {
         window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.size), styleMask: .borderless, backing: .buffered, defer: false)
@@ -457,7 +466,7 @@ final class PetController {
             guard let self else { return }
             self.hovering = inside
             if inside, self.activity == .sleep { self.activity = .idle; self.activityTime = 2 }
-            if inside, self.chatMood == nil, !self.chatOpen { self.say("Need help? Click me! 👋", for: 2.5) }
+            if inside, self.chatMood == nil, !self.chatOpen { self.say("Click to open your list 📝", for: 2.5) }
         }
         view.onMouseDown = { [weak self] e in self?.mouseDown(e) }
         view.onMouseDragged = { [weak self] e in self?.mouseDragged(e) }
@@ -467,7 +476,7 @@ final class PetController {
 
     func start() {
         window.orderFrontRegardless()
-        say("Hi! I'm Mochi 🌱 Click me if you need help!", for: 5)
+        say("Hi! I'm Mochi 🌱 Click me to open your list!", for: 5)
         let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
@@ -581,7 +590,7 @@ final class PetController {
             chatterTimer -= dt
             if chatterTimer <= 0 {
                 chatterTimer = .random(in: 25...50)
-                say(chatter.randomElement(), for: 3.5)
+                say(nextChatter(), for: 4)
             }
         }
 
