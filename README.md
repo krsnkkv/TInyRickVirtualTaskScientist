@@ -38,6 +38,12 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 **Loner Rick** (next to ADHD Mode) shows this right away: if you leave Rick alone for 10 minutes he gets sad, nags you about your to-do list, and stays slumped until you hover, click or drag him.
 Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
 
+## Tasks | Calendar views
+The list window has a **☑︎ Tasks | 📅 Calendar** switch at the top (⌘1 / ⌘2, or 🧪 ▸ Open Calendar View). It reopens on whichever you used last.
+- **Schedule:** scrolls day by day for the next 30 days: overdue tasks first, then each day's events and the tasks due that day (with their box: U&I, U&NI…).
+- **Month:** a month grid with dots (events in their calendar colour, tasks in their box colour); ‹ › and Today to move around; click a day to see its list underneath.
+- Tick a task's box in either view to mark it done; it's struck through in your list too.
+
 ## Calendar
 **🧪 ▸ Calendar ▸ Connect Calendar…** asks macOS for calendar access. It reads the Calendar app, so **Google calendars work too** once your Google account is added in System Settings ▸ Internet Accounts.
 - **Today strip** above the boxes: today's events with calendar colours; finished meetings fade.
@@ -78,6 +84,8 @@ Everything a character says lives in its `Personality.md`. Each `## section` is 
 - `Sources/DueDates.swift`: finding due dates in items and wording reminders
 - `Sources/Sprite.swift`: loading custom sprites
 - `Sources/Tasks.swift`: tasks with stable IDs behind the typed lines, migration, done/cleanup
+- `Sources/CalendarPane.swift`: the Calendar side of the list window (Schedule and Month views)
+- `Sources/Themes.swift`: Space / Garden / Plain list backgrounds
 - `Sources/Calendar.swift`, `Sources/CalendarLink.swift`: EventKit access, Today strip data, task↔event sync rules
 - `Sources/Profiles.swift`: profile folders, switching, migration from the single-character setup
 - `Sources/main.swift`: app setup and menu

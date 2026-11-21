@@ -42,6 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Calendar: Today strip, two-way sync for linked tasks, heads-ups before meetings
         calendar.onChange = { [weak self] in self?.refreshCalendar() }
+        matrix.events = { [weak self] from, to in self?.calendar.events(from: from, to: to) ?? [] }
+        matrix.calendarConnected = { [weak self] in self?.calendar.isConnected ?? false }
         matrix.onAddToCalendar = { [weak self] task in self?.addToCalendar(task) }
         refreshCalendar()
         calendarTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.calendarTick() }
@@ -77,6 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         edit.addItem(withTitle: "Mark Done / Not Done", action: #selector(ListTextView.toggleDone(_:)), keyEquivalent: "X")
         edit.addItem(withTitle: "Add to Calendar", action: #selector(ListTextView.addToCalendar(_:)), keyEquivalent: "E")
         main.addItem(withTitle: "Edit", action: nil, keyEquivalent: "").submenu = edit
+        let view = NSMenu(title: "View")
+        view.addItem(withTitle: "Tasks", action: #selector(showTasks), keyEquivalent: "1").target = self
+        view.addItem(withTitle: "Calendar", action: #selector(showCalendar), keyEquivalent: "2").target = self
+        main.addItem(withTitle: "View", action: nil, keyEquivalent: "").submenu = view
         NSApp.mainMenu = main
     }
 
@@ -94,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.removeAllItems()
 
         addShortcutItem("Open / Close My List", #selector(toggleList), "c")
+        menu.addItem(withTitle: "Open Calendar View", action: #selector(showCalendar), keyEquivalent: "").target = self
         menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Clean Up Done Tasks", action: #selector(cleanUp), keyEquivalent: "").target = self
         addShortcutItem("Hide / Show \(p.name)", #selector(toggleHidden), "r")
@@ -371,6 +378,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let n = matrix.cleanUpDone()
         pet.say(n == 0 ? Personality.line(.cleanNothing) : Personality.line(.cleaned, item: "\(n)"), for: 4)
     }
+
+    @objc private func showTasks() { openList(); matrix.showMode(.tasks) }
+    @objc private func showCalendar() { openList(); matrix.showMode(.calendar) }
 
     @objc private func toggleList() {
         if matrix.isOpen { matrix.toggle(near: pet.window.frame) } else { openList() }

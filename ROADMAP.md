@@ -51,6 +51,7 @@ A profile = a whole character: look, voice and behaviour.
 - [x] **Write:** "Add to Calendar" on a task with a due date → creates an all-day event (or timed, if a time was written: "at 3pm")
 - [x] Two-way: moving/deleting the calendar event updates the task, and vice versa (uses `externalID` from Phase 0)
 - [x] Choose which calendars to read and which one to write to
+- [x] **Calendar view** in the list window: Schedule (day by day) and Month (grid + day list), tick tasks off there
 - [ ] Optional: sync tasks with **Apple Reminders** lists (shows up on iPhone too)
 - [ ] Later: direct **Google Calendar API** (OAuth) for people who don't add Google to macOS
 - [x] Understand times of day ("at 3pm", "9:30am", "15:45", "noon") → timed events

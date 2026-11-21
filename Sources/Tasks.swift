@@ -222,6 +222,13 @@ struct MatrixData: Codable {
         }
     }
 
+    /// Marks one task done / not done (e.g. ticked in the calendar view).
+    mutating func setDone(_ id: UUID, _ done: Bool, now: Date = Date()) {
+        guard let k = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[k].done = done
+        tasks[k].doneAt = done ? now : nil
+    }
+
     /// Removes done tasks from the boxes; returns them (for the done log).
     mutating func cleanUpDone() -> [TaskItem] {
         let doneTasks = tasks.filter(\.done)

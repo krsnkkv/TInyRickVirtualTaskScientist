@@ -239,6 +239,16 @@ final class MatrixController: NSObject, NSWindowDelegate {
         panel.delegate = self
 
         panel.contentView = grid
+        panel.titleVisibility = .hidden            // the Tasks | Calendar switch sits where the title was
+        grid.pane.tasks = { [weak self] in self?.data.tasks ?? [] }
+        grid.pane.onToggleDone = { [weak self] id in
+            guard let self else { return }
+            self.save()
+            let done = !(self.data.tasks.first { $0.id == id }?.done ?? false)
+            self.data.setDone(id, done)
+            MatrixStore.save(self.data)
+            self.refreshHighlights()
+        }
         applyBackground(NSImage(contentsOf: MatrixStore.backgroundFile))
 
         _ = data.rollRelativeWords()
@@ -286,6 +296,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
     private func applyBackground(_ img: NSImage?) {
         grid.background = img
         grid.theme = ListTheme.current
+        grid.pane.theme = grid.theme
         quads.forEach { $0.setTranslucent(img != nil || grid.theme.translucentBoxes) }
         if let last = lastToday { setToday(last) }      // re-colour the Today strip
     }
@@ -312,6 +323,22 @@ final class MatrixController: NSObject, NSWindowDelegate {
 
     private func refreshHighlights() {
         quads.forEach { $0.highlight(dueDates: data.dueDates, completed: data.completed) }
+    }
+
+    /// Events for the calendar view (filled in by the app; empty until a calendar is connected).
+    var events: (Date, Date) -> [DayEvent] {
+        get { grid.pane.events }
+        set { grid.pane.events = newValue }
+    }
+    var calendarConnected: () -> Bool {
+        get { grid.pane.calendarConnected }
+        set { grid.pane.calendarConnected = newValue }
+    }
+
+    /// Tasks or Calendar side (⌘1 / ⌘2).
+    func showMode(_ mode: MatrixGridView.Mode) {
+        grid.mode = mode
+        if !isOpen { panel.makeKeyAndOrderFront(nil) }
     }
 
     @objc private func dayMayHaveChanged() {
@@ -409,7 +436,9 @@ final class MatrixController: NSObject, NSWindowDelegate {
         lastToday = events
         let ink = grid.background != nil ? NSColor.white : grid.theme.ink
         let label = grid.todayLabel
-        guard !events.isEmpty else { label.isHidden = true; grid.needsLayout = true; return }
+        grid.showsToday = !events.isEmpty
+        if grid.mode == .calendar { grid.pane.reload() }
+        guard !events.isEmpty else { label.attributedStringValue = NSAttributedString(); grid.needsLayout = true; return }
         let out = NSMutableAttributedString(string: "📅 Today  ", attributes: [
             .font: NSFont.systemFont(ofSize: 12, weight: .bold), .foregroundColor: ink])
         let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none
@@ -425,7 +454,6 @@ final class MatrixController: NSObject, NSWindowDelegate {
         }
         label.attributedStringValue = out
         label.toolTip = events.map { ($0.allDay ? "All day" : f.string(from: $0.start)) + "  " + $0.title }.joined(separator: "\n")
-        label.isHidden = false
         grid.needsLayout = true
     }
 
@@ -522,6 +550,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
             panel.setFrameOrigin(CGPoint(x: x, y: y))
         }
         rollWords()           // "tomorrow" becomes "today" overnight
+        grid.applyMode()      // opens on whichever side you used last
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         onVisibility?(true)
@@ -533,9 +562,40 @@ final class MatrixController: NSObject, NSWindowDelegate {
 
 /// Lays the four boxes out in a 2×2 grid with a thin dark gutter, like the original.
 final class MatrixGridView: NSView {
+    enum Mode: Int { case tasks = 0, calendar = 1 }
+
     private let quads: [QuadrantView]
+    let pane = CalendarPane(frame: .zero)
+    /// Tasks | Calendar, in the title bar.
+    let modeSwitch = NSSegmentedControl(labels: ["☑︎ Tasks", "📅 Calendar"], trackingMode: .selectOne, target: nil, action: nil)
+    /// Schedule | Month (calendar mode only).
+    let viewSwitch = NSSegmentedControl(labels: ["Schedule", "Month"], trackingMode: .selectOne, target: nil, action: nil)
+
+    /// Which side is showing; remembered, so the window opens where you left it.
+    var mode: Mode {
+        get { Mode(rawValue: UserDefaults.standard.integer(forKey: "list.mode")) ?? .tasks }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "list.mode"); applyMode() }
+    }
+
+    func applyMode() {
+        modeSwitch.selectedSegment = mode.rawValue
+        viewSwitch.selectedSegment = pane.view == .month ? 1 : 0
+        let cal = mode == .calendar
+        quads.forEach { $0.isHidden = cal }
+        pane.isHidden = !cal
+        viewSwitch.isHidden = !cal
+        if cal { pane.theme = theme; pane.reload() }
+        needsLayout = true
+    }
     var background: NSImage? { didSet { needsLayout = true; needsDisplay = true } }
-    var theme: ListTheme = .plain { didSet { needsLayout = true; needsDisplay = true } }
+    var theme: ListTheme = .plain { didSet { styleControls(); needsLayout = true; needsDisplay = true } }
+
+    /// Switches and buttons drawn on the background: dark style on Space/Plain/pictures, light on Garden.
+    func styleControls() {
+        let light = background == nil && theme == .garden
+        let look = NSAppearance(named: light ? .aqua : .darkAqua)
+        [modeSwitch, viewSwitch, pane].forEach { $0.appearance = look }
+    }
 
     /// "📅 Today: …" line above the boxes (hidden when there's nothing to show).
     let todayLabel: NSTextField = {
@@ -545,6 +605,12 @@ final class MatrixGridView: NSView {
         l.isHidden = true
         return l
     }()
+
+    /// Whether the Today strip has something to show (set by the controller).
+    var showsToday = false
+
+    @objc private func modeChanged() { mode = Mode(rawValue: modeSwitch.selectedSegment) ?? .tasks }
+    @objc private func viewChanged() { pane.view = viewSwitch.selectedSegment == 1 ? .month : .schedule }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let img = background, img.size.width > 0, img.size.height > 0 else {
@@ -562,12 +628,32 @@ final class MatrixGridView: NSView {
         super.init(frame: .zero)
         quads.forEach(addSubview)
         addSubview(todayLabel)
+        addSubview(pane)
+        for s in [modeSwitch, viewSwitch] {
+            s.segmentStyle = .capsule
+            s.controlSize = .small
+            s.target = self
+            addSubview(s)
+        }
+        modeSwitch.action = #selector(modeChanged)
+        viewSwitch.action = #selector(viewChanged)
+        applyMode()
     }
     required init?(coder: NSCoder) { fatalError() }
 
     override func layout() {
         super.layout()
-        let strip: CGFloat = todayLabel.isHidden ? 0 : 26
+        // switches sit in the title bar
+        modeSwitch.sizeToFit(); viewSwitch.sizeToFit()
+        modeSwitch.frame.origin = CGPoint(x: (bounds.width - modeSwitch.frame.width) / 2, y: bounds.height - 25)
+        viewSwitch.frame.origin = CGPoint(x: bounds.width - viewSwitch.frame.width - 12, y: bounds.height - 25)
+        if mode == .calendar {
+            todayLabel.isHidden = true
+            pane.frame = NSRect(x: 14, y: 10, width: bounds.width - 28, height: bounds.height - 28 - 18)
+            return
+        }
+        let strip: CGFloat = todayLabel.attributedStringValue.length == 0 || !showsToday ? 0 : 26
+        todayLabel.isHidden = strip == 0
         let roomy = background != nil || theme != .plain
         let gap: CGFloat = roomy ? 14 : 4, top: CGFloat = 28 + strip   // wider gutters let the picture show
         todayLabel.frame = NSRect(x: 12, y: bounds.height - 28 - strip + 4, width: bounds.width - 24, height: 20)
