@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.title = "🧪"
         addShortcutItem("Open / Close My List", #selector(toggleList), "c")
         menu.addItem(withTitle: "What's Due Soon?", action: #selector(remind), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Clean Up Done Tasks", action: #selector(cleanUp), keyEquivalent: "").target = self
         addShortcutItem("Hide / Show Rick", #selector(toggleHidden), "r")
         menu.addItem(.separator())
         addToggle("Mute Rick", #selector(toggleMute), pet.muted)
@@ -118,6 +119,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !pet.isShown { pet.show() }
         // Wait for the menu to close (and the mouse to leave him), or the hover would cancel it at once.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.pet.sulk() }
+    }
+
+    /// Clears struck-through tasks out of the list (kept in done-log.json).
+    @objc private func cleanUp() {
+        if !pet.isShown { pet.show() }
+        let n = matrix.cleanUpDone()
+        pet.say(n == 0 ? Personality.line(.cleanNothing) : Personality.line(.cleaned, item: "\(n)"), for: 4)
     }
 
     @objc private func toggleList() {

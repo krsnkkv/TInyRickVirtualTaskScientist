@@ -2,87 +2,6 @@ import Cocoa
 
 // MARK: - Storage (always remembered)
 
-/// The four lists, saved as plain JSON so it's easy to sync elsewhere later.
-/// Location: ~/Library/Application Support/MochiPet/matrix.json
-struct MatrixData: Codable {
-    var urgentImportant = ">> MSc Industry by Thursday"
-    var urgentNotImportant = ""
-    var notUrgentImportant = ""
-    var notUrgentNotImportant = ""
-    /// Due date for each item, worked out when the item was first written.
-    var dueDates: [String: Date] = [:]
-    /// Items marked done (struck through, ⌘⇧X). They stay in the list but aren't nagged about.
-    var completed: Set<String> = []
-    var updatedAt = Date()
-
-    init() {}
-
-    // Tolerant decoding so files from older versions (or hand edits) never wipe the list.
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        let d = MatrixData()
-        urgentImportant = try c.decodeIfPresent(String.self, forKey: .urgentImportant) ?? d.urgentImportant
-        urgentNotImportant = try c.decodeIfPresent(String.self, forKey: .urgentNotImportant) ?? ""
-        notUrgentImportant = try c.decodeIfPresent(String.self, forKey: .notUrgentImportant) ?? ""
-        notUrgentNotImportant = try c.decodeIfPresent(String.self, forKey: .notUrgentNotImportant) ?? ""
-        dueDates = try c.decodeIfPresent([String: Date].self, forKey: .dueDates) ?? [:]
-        completed = try c.decodeIfPresent(Set<String>.self, forKey: .completed) ?? []
-        updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
-    }
-
-    var boxes: [String] { [urgentImportant, urgentNotImportant, notUrgentImportant, notUrgentNotImportant] }
-
-    /// Give new items a due date (resolved against *now*), forget items that were deleted.
-    mutating func refreshDueDates(now: Date = Date()) {
-        var seen = Set<String>()
-        for box in boxes {
-            for line in box.split(separator: "\n") {
-                let t = itemText(line)
-                guard !t.isEmpty else { continue }
-                seen.insert(t)
-                if dueDates[t] == nil, let d = DueParser.dueDate(in: t, now: now) { dueDates[t] = d }
-            }
-        }
-        dueDates = dueDates.filter { seen.contains($0.key) }
-        completed = completed.filter { seen.contains($0) }
-    }
-
-    /// Rewrites "tomorrow"/"today"/"yesterday" (and passed weekdays) so they stay true.
-    /// Returns true if any text changed.
-    mutating func rollRelativeWords(now: Date = Date()) -> Bool {
-        var changed = false
-        func roll(_ box: String) -> String {
-            box.components(separatedBy: "\n").map { line in
-                let t = itemText(Substring(line))
-                guard let due = dueDates[t] else { return line }
-                let newLine = DueParser.rollRelativeWords(in: line, due: due, now: now)
-                guard newLine != line else { return line }
-                changed = true
-                let newT = itemText(Substring(newLine))
-                dueDates[newT] = due                                  // keep the original due date
-                if completed.contains(t) { completed.insert(newT) }
-                return newLine
-            }.joined(separator: "\n")
-        }
-        urgentImportant = roll(urgentImportant)
-        urgentNotImportant = roll(urgentNotImportant)
-        notUrgentImportant = roll(notUrgentImportant)
-        notUrgentNotImportant = roll(notUrgentNotImportant)
-        if changed { refreshDueDates(now: now) }
-        return changed
-    }
-
-    var dueItems: [DueItem] {
-        boxes.enumerated().flatMap { q, box in
-            box.split(separator: "\n").compactMap { line -> DueItem? in
-                let t = itemText(line)
-                guard let d = dueDates[t], !completed.contains(t) else { return nil }
-                return DueItem(text: t, due: d, quadrant: q)
-            }
-        }
-    }
-}
-
 enum MatrixStore {
     static var dir: URL {
         if let custom = ProcessInfo.processInfo.environment["RICK_DATA_DIR"] { return URL(fileURLWithPath: custom) }   // tests
@@ -92,10 +11,24 @@ enum MatrixStore {
     /// Optional picture shown behind the four boxes.
     static var backgroundFile: URL { dir.appendingPathComponent("list-background.png") }
 
+    /// Loads the list. Never loses data: an older format is backed up before it's upgraded,
+    /// and a file that can't be read is set aside (matrix.unreadable-<date>.json) rather than overwritten.
     static func load() -> MatrixData {
         guard let data = try? Data(contentsOf: file) else { return MatrixData() }
         let dec = JSONDecoder(); dec.dateDecodingStrategy = .iso8601
-        return (try? dec.decode(MatrixData.self, from: data)) ?? MatrixData()
+        do {
+            let m = try dec.decode(MatrixData.self, from: data)
+            if let old = m.migratedFrom {
+                let backup = dir.appendingPathComponent("matrix.v\(old).backup.json")
+                if !FileManager.default.fileExists(atPath: backup.path) { try? data.write(to: backup) }
+            }
+            return m
+        } catch {
+            let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            try? data.write(to: dir.appendingPathComponent("matrix.unreadable-\(stamp).json"))
+            NSLog("Rick: couldn't read matrix.json (\(error)); kept a copy and started fresh")
+            return MatrixData()
+        }
     }
 
     static func save(_ m: MatrixData) {
@@ -303,7 +236,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
         // keep "tomorrow"/"today" true: at midnight and when the Mac wakes up
         NotificationCenter.default.addObserver(self, selector: #selector(dayMayHaveChanged), name: .NSCalendarDayChanged, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(dayMayHaveChanged), name: NSWorkspace.didWakeNotification, object: nil)
-        data.refreshDueDates()
+        data.sync()
         MatrixStore.save(data)
         refreshHighlights()
     }
@@ -334,7 +267,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
         data.urgentNotImportant = quads[1].text
         data.notUrgentImportant = quads[2].text
         data.notUrgentNotImportant = quads[3].text
-        data.refreshDueDates()
+        data.sync()
         data.updatedAt = Date()
         MatrixStore.save(data)
         refreshHighlights()
@@ -360,19 +293,38 @@ final class MatrixController: NSObject, NSWindowDelegate {
     /// ⌘⇧X: strike through (or un-strike) every item touched by the selection.
     private func toggleDone(in q: QuadrantView, range: NSRange) {
         save()
+        guard let box = quads.firstIndex(where: { $0 === q }) else { return }
         let s = q.text as NSString
         guard s.length > 0 else { return }
-        let r = s.lineRange(for: NSRange(location: min(range.location, s.length - 1), length: range.length))
-        let items = s.substring(with: r).split(separator: "\n").map(itemText).filter { !$0.isEmpty }
-        guard !items.isEmpty else { return }
-        if items.allSatisfy(data.completed.contains) {
-            items.forEach { data.completed.remove($0) }
-        } else {
-            items.forEach { data.completed.insert($0) }
+        let sel = s.lineRange(for: NSRange(location: min(range.location, s.length - 1), length: range.length))
+        // index (among the box's items) of every item line the selection touches
+        var indexes: [Int] = [], item = -1, pos = 0
+        for line in q.text.components(separatedBy: "\n") {
+            let len = (line as NSString).length
+            if !itemText(Substring(line)).isEmpty {
+                item += 1
+                if NSIntersectionRange(NSRange(location: pos, length: max(len, 1)), sel).length > 0 { indexes.append(item) }
+            }
+            pos += len + 1
         }
+        data.toggleDone(box: box, itemIndexes: indexes)
         data.updatedAt = Date()
         MatrixStore.save(data)
         refreshHighlights()
+    }
+
+    /// Clears struck-through tasks out of the boxes (they're kept in done-log.json).
+    @discardableResult
+    func cleanUpDone() -> Int {
+        save()
+        let removed = data.cleanUpDone()
+        guard !removed.isEmpty else { return 0 }
+        DoneLog.append(removed)
+        for (q, t) in zip(quads, data.boxes) where q.text != t { q.text = t }
+        data.updatedAt = Date()
+        MatrixStore.save(data)
+        refreshHighlights()
+        return removed.count
     }
 
     /// Items in the "Urgent & Important" box.

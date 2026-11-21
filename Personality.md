@@ -113,3 +113,12 @@ He's secretly on your side: every reminder ends with a push to actually do the t
 - Your list is empty. Suspicious. Go write something down.
 - Nothing on the list. Either you're a genius or you're hiding something.
 - Damn, you're really not going to open this list?
+
+## cleaned
+- Cleared {item} done tasks. Look at you, being functional.
+- {item} tasks gone. Don't let it go to your head.
+- Swept away {item} finished things. Science.
+
+## clean nothing
+- Nothing's crossed off. Nothing to clean. Do something first, genius.
+- You want me to clean up… zero finished tasks? Bold.

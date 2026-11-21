@@ -101,9 +101,22 @@ enum DueParser {
             + "|(\(months))\\s+\(ordinal)"
         let pattern = "(?i)\\s*\\b((by|on|due|before|until|for|this)\\s+)*(\(date))\\b"
         guard let re = try? NSRegularExpression(pattern: pattern) else { return text }
+        dateWordsRegex = re
         let stripped = re.stringByReplacingMatches(in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
         let cleaned = stripped.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "!?.,:;-–—")))
         return cleaned.isEmpty ? text : cleaned
+    }
+
+    private static var dateWordsRegex: NSRegularExpression?
+
+    /// Just the date words of an item, normalised ("by tomorrow", "thursday"…), "" if none.
+    /// Used to tell whether an edit changed *when* something is due.
+    static func datePhrase(_ text: String) -> String {
+        if dateWordsRegex == nil { _ = stripDateWords("") }
+        guard let re = dateWordsRegex else { return "" }
+        return re.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            .compactMap { Range($0.range, in: text).map { text[$0].lowercased().trimmingCharacters(in: .whitespaces) } }
+            .joined(separator: " ")
     }
 
     /// Whole days from today until `date` (negative = overdue).
