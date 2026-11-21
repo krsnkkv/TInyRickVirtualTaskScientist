@@ -108,12 +108,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         addToggle("Mute \(p.name)", #selector(toggleMute), pet.muted)
         addToggle("Anti-Gravity", #selector(toggleGravity), pet.antiGravity)
+        addToggle("Stay Still", #selector(toggleStill), pet.stayStill)
+        addToggle("ADHD Mode", #selector(toggleADHD), pet.adhd)
+        if pet.canCry { addToggle("You Cryin?", #selector(toggleCryin), pet.cryin) }
         if pet.hasModes {
-            // a profile with its own modes (e.g. Pinkie) gets those instead of the usual ones
+            // a profile with its own modes (e.g. Pinkie) gets those where Loner usually is
             let item = menu.addItem(withTitle: "\(p.name) Modes", action: nil, keyEquivalent: "")
             item.submenu = modesMenu()
         } else {
-            for item in modesMenu().items { menu.addItem(item.copy() as! NSMenuItem) }
+            menu.addItem(withTitle: "Loner \(p.name)", action: #selector(demoSad), keyEquivalent: "").target = self
         }
         menu.addItem(.separator())
 
@@ -370,7 +373,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
-    /// The modes: the profile's own (sprite.json "modes"), or the usual Stay Still / ADHD / Loner.
+    /// The modes ⌃⌘P shows: the profile's own (sprite.json "modes"), or the usual Stay Still / ADHD / Loner.
     private func modesMenu() -> NSMenu {
         let m = NSMenu(title: "Modes")
         let p = Profiles.active

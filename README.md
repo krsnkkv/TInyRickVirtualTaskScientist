@@ -40,7 +40,7 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 
 **You Cryin?** shows up in the menu when the profile's sprite has a `cryin` animation (e.g. `"cryin": "2:1-3"` in `sprite.json`). While it's on, the pet stays put and plays that animation over and over.
 
-**Profile modes:** a sprite can bring its own set of modes, which replace Stay Still / ADHD / Loner in the menu (as "<Name> Modes"). In `sprite.json`:
+**Profile modes:** a sprite can bring its own set of modes, which show up in the menu as "<Name> Modes" (where Loner usually is). In `sprite.json`:
 
 ```json
 "modes": [

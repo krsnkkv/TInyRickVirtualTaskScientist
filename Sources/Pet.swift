@@ -550,9 +550,9 @@ final class PetController {
     var modes: [SpriteMode] { fullSet.modes }
     var hasModes: Bool { !fullSet.modes.isEmpty }
 
-    /// Behaviour actually in effect: a profile with modes ignores the Stay Still / ADHD toggles.
-    private var still: Bool { hasModes ? mode?.behaviour == .still : stayStill }
-    private var hyper: Bool { hasModes ? mode?.behaviour == .hyper : adhd }
+    /// Behaviour actually in effect: the Stay Still / ADHD toggles, or the current mode's own.
+    private var still: Bool { stayStill || mode?.behaviour == .still }
+    private var hyper: Bool { adhd || mode?.behaviour == .hyper }
 
     private func applyMode(named name: String?) {
         mode = fullSet.modes.first { $0.name == name } ?? fullSet.modes.first
