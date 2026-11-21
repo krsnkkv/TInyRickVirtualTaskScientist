@@ -110,7 +110,7 @@ check(d.tasks.first?.done == true, "⌘⇧X done isn't undone by the DONE rule")
 // --- profiles (RICK_DATA_DIR is a fresh temp folder; built-ins come from ./Profiles)
 UserDefaults.standard.removeObject(forKey: "activeProfile")
 let ids = Profiles.all().map(\.id)
-check(ids.contains("mochi") && ids.contains("grumpy-genius"), "built-in profiles found (\(ids))")
+check(ids.contains("mochi") && !ids.contains("grumpy-genius"), "built-in profiles found (\(ids))")
 check(Profiles.active.id == "mochi", "default profile is Mochi")
 
 // old single-character setup: a sprite in the data folder + global settings → becomes "Rick"
@@ -126,7 +126,7 @@ check(fm.fileExists(atPath: rick.spriteFile.path) && fm.fileExists(atPath: rick.
 check(!fm.fileExists(atPath: MatrixStore.dir.appendingPathComponent("sprite.png").path), "old sprite location cleared")
 check(UserDefaults.standard.bool(forKey: "rick.stayStill"), "settings carried over to Rick")
 Personality.reload()
-check(Personality.lines[.greeting]?.contains { $0.contains("genius") || $0.contains("Rick") } == true, "Rick speaks grumpy-genius")
+check(fm.fileExists(atPath: rick.personalityFile.path) && Personality.lines[.greeting]?.isEmpty == false, "Rick gets a personality")
 UserDefaults.standard.removeObject(forKey: "stayStill"); UserDefaults.standard.removeObject(forKey: "rick.stayStill")
 
 let coach = Profiles.create(name: "Coach K", icon: "🏀", template: Profiles.all().first { $0.id == "mochi" })

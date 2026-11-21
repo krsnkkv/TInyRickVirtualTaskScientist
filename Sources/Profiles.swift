@@ -117,7 +117,7 @@ enum Profiles {
         guard UserDefaults.standard.string(forKey: activeKey) == nil else { return }    // already on profiles
         guard fm.fileExists(atPath: oldSprite.path) else { return }                     // nothing to bring over
 
-        let template = all().first { $0.id == "grumpy-genius" }
+        let template = all().first { $0.id == defaultID }
         guard let rick = create(name: "Rick", icon: "🧪", template: template) else { return }
         for file in ["sprite.png", "sprite.json"] {
             let from = base.appendingPathComponent(file)
