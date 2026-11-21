@@ -8,6 +8,8 @@ enum Moment: String, CaseIterable {
     case wokeUp = "woke up", newSprite = "new sprite", lonely, summoned
     case rundownStart = "rundown start", rundownEnd = "rundown end", rundownEmpty = "rundown empty"
     case cleaned, cleanNothing = "clean nothing"
+    case meetingSoon = "meeting soon", meetingNow = "meeting now", addedToCalendar = "added to calendar"
+    case calendarConnected = "calendar connected", calendarDenied = "calendar denied", needsDate = "needs a date"
 }
 
 /// What the pet says, loaded from Personality.md.
@@ -98,5 +100,11 @@ enum Personality {
         .rundownEmpty: ["Your list is empty. Suspicious."],
         .cleaned: ["Cleared {item} done tasks."],
         .cleanNothing: ["Nothing's done yet. Nothing to clean."],
+        .meetingSoon: ["{item} {when}."],
+        .meetingNow: ["{item} is starting now."],
+        .addedToCalendar: ["Added {item} to your calendar for {when}."],
+        .calendarConnected: ["Calendar connected."],
+        .calendarDenied: ["No calendar access. You can turn it on in System Settings."],
+        .needsDate: ["That one has no date. Give it a day first."],
     ]
 }

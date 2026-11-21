@@ -100,3 +100,24 @@ Mochi is a tiny sprout who thinks you're doing great and gently keeps you on tra
 ## clean nothing
 - Nothing's crossed off yet, you'll get there! 🌱
 - No done tasks to tidy. Want to finish a little one?
+
+## meeting soon
+- {item} {when}! You've got this 🌱
+- Little heads-up: {item} {when} 📅
+
+## meeting now
+- {item} is starting now! Good luck ✨
+- Time for {item}! I'll be right here.
+
+## added to calendar
+- Added {item} to your calendar for {when}! 📅
+- {item} is in your calendar for {when} ✨
+
+## calendar connected
+- Yay, calendar connected! I'll keep an eye on your day 🌱
+
+## calendar denied
+- No worries! You can turn calendar access on in System Settings anytime.
+
+## needs a date
+- That one doesn't have a date yet. Add one like "by Friday" and try again!

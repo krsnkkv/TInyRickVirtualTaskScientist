@@ -1,5 +1,6 @@
 import Cocoa
 import ServiceManagement
+import EventKit
 
 // Rick: a pixel pet that wanders your screen. Click it to open your
 // Urgent/Important list, which is saved automatically.
@@ -7,6 +8,9 @@ import ServiceManagement
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let pet = PetController()
     private let matrix = MatrixController()
+    private let calendar = CalendarSync()
+    private var calendarTimer: Timer?
+    private var announced = Set<String>()          // meeting heads-ups already given ("id|soon", "id|now")
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
 
@@ -35,6 +39,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !open { self.pet.celebrate() }
         }
 
+        // Calendar: Today strip, two-way sync for linked tasks, heads-ups before meetings
+        calendar.onChange = { [weak self] in self?.refreshCalendar() }
+        matrix.onAddToCalendar = { [weak self] task in self?.addToCalendar(task) }
+        refreshCalendar()
+        calendarTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.calendarTick() }
+        calendarTimer?.tolerance = 10
+        NotificationCenter.default.addObserver(forName: .NSCalendarDayChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.announced.removeAll(); self?.refreshCalendar()
+        }
+
         // Global shortcuts: ⌃⌘R = send Rick away / bring him back, ⌃⌘C = open/close the checklist
         HotKeys.controlCommand(.r) { [weak self] in self?.toggleHidden() }
         HotKeys.controlCommand(.c) { [weak self] in self?.toggleList() }
@@ -60,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         edit.addItem(.separator())
         edit.addItem(withTitle: "Mark Done / Not Done", action: #selector(ListTextView.toggleDone(_:)), keyEquivalent: "X")
+        edit.addItem(withTitle: "Add to Calendar", action: #selector(ListTextView.addToCalendar(_:)), keyEquivalent: "E")
         main.addItem(withTitle: "Edit", action: nil, keyEquivalent: "").submenu = edit
         NSApp.mainMenu = main
     }
@@ -88,6 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         addToggle("ADHD Mode", #selector(toggleADHD), pet.adhd)
         menu.addItem(withTitle: "Loner \(p.name)", action: #selector(demoSad), keyEquivalent: "").target = self
         menu.addItem(.separator())
+
+        menu.addItem(withTitle: "Calendar", action: nil, keyEquivalent: "").submenu = calendarMenu()
 
         // Profile: who the pet is
         let profiles = NSMenu(title: "Profile")
@@ -121,6 +138,138 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+    }
+
+    // MARK: calendar
+
+    private func calendarMenu() -> NSMenu {
+        let m = NSMenu(title: "Calendar")
+        func item(_ title: String, _ action: Selector?, on: Bool? = nil, object: Any? = nil, indent: Int = 0) {
+            let i = m.addItem(withTitle: title, action: action, keyEquivalent: "")
+            i.target = action == nil ? nil : self
+            i.representedObject = object
+            i.indentationLevel = indent
+            if let on { i.state = on ? .on : .off }
+        }
+        guard calendar.isConnected else {
+            if calendar.wasDenied {
+                item("Calendar Access Is Off: Open Settings…", #selector(openCalendarPrivacy))
+            } else {
+                item("Connect Calendar…", #selector(connectCalendar))
+            }
+            m.addItem(.separator())
+            item("Tip: add Google in System Settings ▸ Internet Accounts", nil)
+            return m
+        }
+        item("Add Selected Task to Calendar", #selector(addSelectedToCalendar))
+        m.items.last?.keyEquivalent = "E"
+        m.items.last?.keyEquivalentModifierMask = [.command, .shift]
+        m.addItem(.separator())
+        item("Show Today in List", #selector(toggleShowToday), on: calendar.showToday)
+        item("Heads-Up Before Meetings", #selector(toggleHeadsUp), on: calendar.headsUp)
+        m.addItem(.separator())
+        item("Show Events From:", nil)
+        for c in calendar.calendars {
+            item(c.title, #selector(toggleCalendarShown(_:)), on: !calendar.hiddenCalendarIDs.contains(c.calendarIdentifier),
+                 object: c.calendarIdentifier, indent: 1)
+            if let color = c.color { m.items.last?.attributedTitle = dot(color, c.title) }
+        }
+        m.addItem(.separator())
+        let target = NSMenu(title: "Add Tasks To")
+        for c in calendar.calendars where c.allowsContentModifications {
+            let i = target.addItem(withTitle: c.title, action: #selector(setTargetCalendar(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = c.calendarIdentifier
+            i.state = c.calendarIdentifier == calendar.targetCalendar?.calendarIdentifier ? .on : .off
+        }
+        m.addItem(withTitle: "Add Tasks To", action: nil, keyEquivalent: "").submenu = target
+        return m
+    }
+
+    private func dot(_ color: NSColor, _ title: String) -> NSAttributedString {
+        let s = NSMutableAttributedString(string: "● ", attributes: [.foregroundColor: color, .font: NSFont.menuFont(ofSize: 0)])
+        s.append(NSAttributedString(string: title, attributes: [.font: NSFont.menuFont(ofSize: 0)]))
+        return s
+    }
+
+    @objc private func connectCalendar() {
+        NSApp.activate(ignoringOtherApps: true)
+        calendar.connect { [weak self] ok in
+            guard let self else { return }
+            self.pet.say(Personality.line(ok ? .calendarConnected : .calendarDenied), for: 5)
+            self.rebuildMenu()
+            self.refreshCalendar()
+        }
+    }
+
+    @objc private func openCalendarPrivacy() { calendar.openPrivacySettings() }
+    @objc private func toggleShowToday() { calendar.showToday.toggle(); rebuildMenu(); refreshCalendar() }
+    @objc private func toggleHeadsUp() { calendar.headsUp.toggle(); rebuildMenu() }
+
+    @objc private func toggleCalendarShown(_ item: NSMenuItem) {
+        guard let id = item.representedObject as? String else { return }
+        var hidden = calendar.hiddenCalendarIDs
+        if hidden.contains(id) { hidden.remove(id) } else { hidden.insert(id) }
+        calendar.hiddenCalendarIDs = hidden
+        rebuildMenu(); refreshCalendar()
+    }
+
+    @objc private func setTargetCalendar(_ item: NSMenuItem) {
+        guard let id = item.representedObject as? String else { return }
+        calendar.targetCalendar = calendar.store.calendar(withIdentifier: id)
+        rebuildMenu()
+    }
+
+    @objc private func addSelectedToCalendar() { addToCalendar(matrix.selectedTask()) }
+
+    /// Creates an event for the task (or tells you why it can't).
+    private func addToCalendar(_ task: TaskItem?) {
+        if !pet.isShown { pet.show() }
+        guard calendar.isConnected else { connectCalendar(); return }
+        guard let task, task.due != nil else { pet.say(Personality.line(.needsDate), for: 5); return }
+        let name = DueParser.stripDateAndTimeWords(task.title)
+        if let existing = task.externalID, calendar.eventInfo(existing) != nil {
+            pet.say(Personality.line(.addedToCalendar, item: name, when: whenText(task)), for: 4)
+            return                                                   // already there
+        }
+        do {
+            let id = try calendar.addEvent(for: task)
+            matrix.link(task.id, toEvent: id)
+            pet.say(Personality.line(.addedToCalendar, item: name, when: whenText(task)), for: 5)
+            refreshCalendar()
+        } catch {
+            pet.say(error.localizedDescription, for: 5)
+        }
+    }
+
+    private func whenText(_ t: TaskItem) -> String {
+        guard let due = t.due else { return "" }
+        let day = DueParser.describe(due)
+        return t.time.map { "\(day) at \(DueParser.timeLabel($0))" } ?? day
+    }
+
+    /// Re-reads the calendar: syncs linked tasks and fills the Today strip.
+    private func refreshCalendar() {
+        guard calendar.isConnected else { matrix.setToday([]); return }
+        matrix.reconcile(with: calendar)
+        matrix.setToday(calendar.showToday ? calendar.today() : [])
+    }
+
+    /// Once a minute: heads-up before meetings. Does nothing while the pet is hidden.
+    private func calendarTick() {
+        guard pet.isShown, calendar.isConnected, calendar.headsUp else { return }
+        let now = Date()
+        let soon = calendar.events(from: now.addingTimeInterval(-60), to: now.addingTimeInterval(Double(calendar.headsUpMinutes + 1) * 60))
+        for e in soon where !e.allDay {
+            let minutes = Int((e.start.timeIntervalSince(now) / 60).rounded())
+            if minutes <= 0, minutes >= -1, announced.insert(e.id + "|now").inserted {
+                pet.say(Personality.line(.meetingNow, item: e.title), for: 7)
+                pet.touched()
+            } else if minutes > 0, minutes <= calendar.headsUpMinutes, announced.insert(e.id + "|soon").inserted {
+                pet.say(Personality.line(.meetingSoon, item: e.title, when: "in \(minutes) minute\(minutes == 1 ? "" : "s")"), for: 7)
+            }
+        }
+        matrix.setToday(calendar.showToday ? calendar.today() : [])  // dims meetings that are over
     }
 
     // MARK: profiles

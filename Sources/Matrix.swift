@@ -43,7 +43,18 @@ enum MatrixStore {
 /// The text area of a box; ⌘⇧X (Edit ▸ Mark Done) toggles strikethrough on the selected items.
 final class ListTextView: NSTextView {
     var onToggleDone: ((NSRange) -> Void)?
+    var onAddToCalendar: ((NSRange) -> Void)?
     @objc func toggleDone(_ sender: Any?) { onToggleDone?(selectedRange()) }
+    /// ⌘⇧E (Edit ▸ Add to Calendar): put the selected task in your calendar.
+    @objc func addToCalendar(_ sender: Any?) { onAddToCalendar?(selectedRange()) }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let m = super.menu(for: event) ?? NSMenu()
+        m.insertItem(.separator(), at: 0)
+        m.insertItem(withTitle: "Add to Calendar", action: #selector(addToCalendar(_:)), keyEquivalent: "", at: 0)
+        m.insertItem(withTitle: "Mark Done / Not Done", action: #selector(toggleDone(_:)), keyEquivalent: "", at: 0)
+        return m
+    }
 }
 
 final class QuadrantView: NSView, NSTextViewDelegate {
@@ -169,6 +180,10 @@ final class QuadrantView: NSView, NSTextViewDelegate {
 
     func textDidChange(_ notification: Notification) { onChange?() }
 
+    /// Called when the cursor moves in this box (remembers which box you're working in).
+    var onFocus: (() -> Void)?
+    func textViewDidChangeSelection(_ notification: Notification) { onFocus?() }
+
     // Enter starts a new ">> " item; Enter on an empty item clears the bullet.
     func textView(_ tv: NSTextView, doCommandBy selector: Selector) -> Bool {
         guard selector == #selector(NSResponder.insertNewline(_:)) else { return false }
@@ -232,6 +247,15 @@ final class MatrixController: NSObject, NSWindowDelegate {
                 guard let self, let q else { return }
                 self.toggleDone(in: q, range: range)
             }
+            q.textView.onAddToCalendar = { [weak self, weak q] range in
+                guard let self, let q else { return }
+                self.lastBox = self.quads.firstIndex { $0 === q } ?? self.lastBox
+                if let t = self.task(in: q, range: range) { self.onAddToCalendar?(t) } else { self.onAddToCalendar?(nil) }
+            }
+            q.onFocus = { [weak self, weak q] in
+                guard let self, let q, let i = self.quads.firstIndex(where: { $0 === q }) else { return }
+                self.lastBox = i
+            }
         }
         // keep "tomorrow"/"today" true: at midnight and when the Mac wakes up
         NotificationCenter.default.addObserver(self, selector: #selector(dayMayHaveChanged), name: .NSCalendarDayChanged, object: nil)
@@ -290,14 +314,11 @@ final class MatrixController: NSObject, NSWindowDelegate {
         refreshHighlights()
     }
 
-    /// ⌘⇧X: strike through (or un-strike) every item touched by the selection.
-    private func toggleDone(in q: QuadrantView, range: NSRange) {
-        save()
-        guard let box = quads.firstIndex(where: { $0 === q }) else { return }
+    /// Index (among the box's items) of every item line a selection touches.
+    private func itemIndexes(in q: QuadrantView, range: NSRange) -> [Int] {
         let s = q.text as NSString
-        guard s.length > 0 else { return }
+        guard s.length > 0 else { return [] }
         let sel = s.lineRange(for: NSRange(location: min(range.location, s.length - 1), length: range.length))
-        // index (among the box's items) of every item line the selection touches
         var indexes: [Int] = [], item = -1, pos = 0
         for line in q.text.components(separatedBy: "\n") {
             let len = (line as NSString).length
@@ -307,6 +328,97 @@ final class MatrixController: NSObject, NSWindowDelegate {
             }
             pos += len + 1
         }
+        return indexes
+    }
+
+    /// The (first) task under a selection.
+    private func task(in q: QuadrantView, range: NSRange) -> TaskItem? {
+        save()
+        guard let box = quads.firstIndex(where: { $0 === q }), let i = itemIndexes(in: q, range: range).first else { return nil }
+        return data.task(box: box, itemIndex: i)
+    }
+
+    // MARK: calendar
+
+    /// Asked to add a task to the calendar (nil = the cursor isn't on a task).
+    var onAddToCalendar: ((TaskItem?) -> Void)?
+    /// Box you last worked in (for the menu's "Add Selected Task to Calendar").
+    private var lastBox = 0
+
+    /// The task where the cursor is in the box you last worked in.
+    func selectedTask() -> TaskItem? {
+        let q = quads[lastBox]
+        return task(in: q, range: q.textView.selectedRange())
+    }
+
+    func task(withID id: UUID) -> TaskItem? { data.tasks.first { $0.id == id } }
+
+    /// Remembers that a task now has a calendar event.
+    func link(_ id: UUID, toEvent eventID: String) {
+        guard let k = data.tasks.firstIndex(where: { $0.id == id }) else { return }
+        data.tasks[k].externalID = eventID
+        data.tasks[k].syncedDue = data.tasks[k].due
+        data.tasks[k].syncedTime = data.tasks[k].time
+        MatrixStore.save(data)
+    }
+
+    /// Keeps linked tasks and events in step (see CalendarLink for the rules).
+    func reconcile(with cal: CalendarSync) {
+        guard cal.isConnected else { return }
+        save()
+        var textChanged = false
+        for t in data.tasks where t.externalID != nil {
+            switch CalendarLink.reconcile(t, event: cal.eventInfo(t.externalID!)) {
+            case .none: break
+            case .unlink:
+                if let k = data.tasks.firstIndex(where: { $0.id == t.id }) {
+                    data.tasks[k].externalID = nil; data.tasks[k].syncedDue = nil; data.tasks[k].syncedTime = nil
+                }
+            case .pushToEvent:
+                cal.updateEvent(t.externalID!, from: t)
+                link(t.id, toEvent: t.externalID!)
+            case .pullFromEvent(let due, let time):
+                data.rewriteLine(of: t.id) { DueParser.retarget($0, due: due, time: time) }
+                if let k = data.tasks.firstIndex(where: { $0.id == t.id }) {
+                    data.tasks[k].due = due; data.tasks[k].time = time
+                    data.tasks[k].syncedDue = due; data.tasks[k].syncedTime = time
+                }
+                textChanged = true
+            }
+        }
+        if textChanged { for (q, t) in zip(quads, data.boxes) where q.text != t { q.text = t } }
+        MatrixStore.save(data)
+        refreshHighlights()
+    }
+
+    /// Fills the Today strip (empty list hides it).
+    func setToday(_ events: [DayEvent]) {
+        let label = grid.todayLabel
+        guard !events.isEmpty else { label.isHidden = true; grid.needsLayout = true; return }
+        let out = NSMutableAttributedString(string: "📅 Today  ", attributes: [
+            .font: NSFont.systemFont(ofSize: 12, weight: .bold), .foregroundColor: NSColor.white])
+        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none
+        let now = Date()
+        for (i, e) in events.enumerated() {
+            if i > 0 { out.append(NSAttributedString(string: "   ·   ", attributes: [.foregroundColor: NSColor(white: 1, alpha: 0.5)])) }
+            let past = !e.allDay && e.end < now
+            out.append(NSAttributedString(string: "● ", attributes: [.foregroundColor: e.color ?? .systemBlue, .font: NSFont.systemFont(ofSize: 11)]))
+            let when = e.allDay ? "" : f.string(from: e.start) + " "
+            out.append(NSAttributedString(string: when + e.title, attributes: [
+                .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+                .foregroundColor: NSColor(white: 1, alpha: past ? 0.45 : 0.95)]))
+        }
+        label.attributedStringValue = out
+        label.toolTip = events.map { ($0.allDay ? "All day" : f.string(from: $0.start)) + "  " + $0.title }.joined(separator: "\n")
+        label.isHidden = false
+        grid.needsLayout = true
+    }
+
+    /// ⌘⇧X: strike through (or un-strike) every item touched by the selection.
+    private func toggleDone(in q: QuadrantView, range: NSRange) {
+        save()
+        guard let box = quads.firstIndex(where: { $0 === q }) else { return }
+        let indexes = itemIndexes(in: q, range: range)
         data.toggleDone(box: box, itemIndexes: indexes)
         data.updatedAt = Date()
         MatrixStore.save(data)
@@ -409,6 +521,15 @@ final class MatrixGridView: NSView {
     private let quads: [QuadrantView]
     var background: NSImage? { didSet { needsLayout = true; needsDisplay = true } }
 
+    /// "📅 Today: …" line above the boxes (hidden when there's nothing to show).
+    let todayLabel: NSTextField = {
+        let l = NSTextField(labelWithString: "")
+        l.lineBreakMode = .byTruncatingTail
+        l.maximumNumberOfLines = 1
+        l.isHidden = true
+        return l
+    }()
+
     override func draw(_ dirtyRect: NSRect) {
         NSColor(hex: 0x1C2333).setFill()
         bounds.fill()
@@ -423,12 +544,15 @@ final class MatrixGridView: NSView {
         self.quads = quads
         super.init(frame: .zero)
         quads.forEach(addSubview)
+        addSubview(todayLabel)
     }
     required init?(coder: NSCoder) { fatalError() }
 
     override func layout() {
         super.layout()
-        let gap: CGFloat = background == nil ? 4 : 14, top: CGFloat = 28   // wider gutters let the picture show
+        let strip: CGFloat = todayLabel.isHidden ? 0 : 26
+        let gap: CGFloat = background == nil ? 4 : 14, top: CGFloat = 28 + strip   // wider gutters let the picture show
+        todayLabel.frame = NSRect(x: 12, y: bounds.height - 28 - strip + 4, width: bounds.width - 24, height: 20)
         let w = (bounds.width - gap * 3) / 2
         let h = (bounds.height - top - gap * 2) / 2
         let frames = [

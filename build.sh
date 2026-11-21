@@ -25,6 +25,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Shows today's events next to your list, gives you a heads-up before meetings, and lets tasks with a due date go into your calendar.</string>
+  <key>NSCalendarsUsageDescription</key><string>Shows today's events next to your list, gives you a heads-up before meetings, and lets tasks with a due date go into your calendar.</string>
 </dict>
 </plist>
 PLIST

@@ -45,15 +45,16 @@ A profile = a whole character: look, voice and behaviour.
 ## Phase 2: Calendar sync (the grounding part) 📅
 **Plan:** use Apple's **EventKit** first. It reads macOS Calendar, which already includes your Google Calendar if your Google account is added in System Settings ▸ Internet Accounts. One integration covers both. Direct Google API comes later only if needed.
 
-- [ ] Ask for Calendar (and Reminders) permission with a clear explanation
-- [ ] **Read:** show today's events in the list window (a "Today" strip above the boxes)
-- [ ] Rick reminds you before meetings ("Stand-up in 10 minutes. Try to look awake.")
-- [ ] **Write:** "Add to Calendar" on a task with a due date → creates an all-day event (or timed, if a time was written: "at 3pm")
-- [ ] Two-way: moving/deleting the calendar event updates the task, and vice versa (uses `externalID` from Phase 0)
-- [ ] Choose which calendars to read and which one to write to
+- [x] Ask for Calendar (and Reminders) permission with a clear explanation
+- [x] **Read:** show today's events in the list window (a "Today" strip above the boxes)
+- [x] Rick reminds you before meetings ("Stand-up in 10 minutes. Try to look awake.")
+- [x] **Write:** "Add to Calendar" on a task with a due date → creates an all-day event (or timed, if a time was written: "at 3pm")
+- [x] Two-way: moving/deleting the calendar event updates the task, and vice versa (uses `externalID` from Phase 0)
+- [x] Choose which calendars to read and which one to write to
 - [ ] Optional: sync tasks with **Apple Reminders** lists (shows up on iPhone too)
 - [ ] Later: direct **Google Calendar API** (OAuth) for people who don't add Google to macOS
-- [ ] Understand times, not just days ("Thursday 3pm", "in 2 hours")
+- [x] Understand times of day ("at 3pm", "9:30am", "15:45", "noon") → timed events
+- [ ] Relative times ("in 2 hours")
 
 ## Phase 3: Clean button 🧹
 "Go through the junk and let me swipe it away."

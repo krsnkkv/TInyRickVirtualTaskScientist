@@ -3,6 +3,5 @@
 set -e
 cd "$(dirname "$0")"
 OUT=$(mktemp -d)
-swiftc -swift-version 5 Sources/DueDates.swift Sources/Tasks.swift Sources/Personality.swift Sources/Matrix.swift \
-  Sources/Pet.swift Sources/Sprite.swift Sources/Profiles.swift Tests/main.swift -o "$OUT/tests" 2>&1 | grep -E "error" || true
+swiftc -swift-version 5 $(ls Sources/*.swift | grep -v "/main.swift") Tests/main.swift -o "$OUT/tests" 2>&1 | grep -E "error" || true
 RICK_DATA_DIR="$OUT/data" RICK_PROFILES_DIR="$PWD/Profiles" "$OUT/tests"

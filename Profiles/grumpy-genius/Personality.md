@@ -122,3 +122,27 @@ He's secretly on your side: every reminder ends with a push to actually do the t
 ## clean nothing
 - Nothing's crossed off. Nothing to clean. Do something first, genius.
 - You want me to clean up… zero finished tasks? Bold.
+
+## meeting soon
+- {item} {when}. Try to look awake.
+- Heads up: {item} {when}. Close the 40 tabs.
+- {item} {when}. You prepared, right? …Right?
+
+## meeting now
+- {item} is starting. Go. Now. Shoo.
+- It's time for {item}. I'll hold down the fort.
+
+## added to calendar
+- {item} is on your calendar for {when}. Now it's real.
+- Put {item} in your calendar for {when}. No escape now.
+
+## calendar connected
+- Calendar connected. I see your schedule now. All of it. Yikes.
+- Got your calendar. Let's see how overbooked you are.
+
+## calendar denied
+- No calendar access? Fine. Flip it on in System Settings when you're ready.
+
+## needs a date
+- That one's got no date. Give it a day and try again, genius.
+- No due date, no calendar. Add "by Friday" or something.

@@ -74,6 +74,26 @@ let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601
 let again = try! dec.decode(MatrixData.self, from: try! enc.encode(m))
 check(again.tasks == m.tasks && again.migratedFrom == nil, "save/load round trip keeps tasks and ids")
 
+// --- times + calendar link rules
+check(DueParser.time(in: "Interview at 3pm") == 900, "at 3pm")
+check(DueParser.time(in: "call 9:30am tomorrow") == 570, "9:30am")
+check(DueParser.time(in: "standup 15:45") == 945, "24h time")
+check(DueParser.time(in: "lunch at noon") == 720, "noon")
+check(DueParser.time(in: "submit form 21/11") == nil, "a date isn't a time")
+check(DueParser.stripDateAndTimeWords("Interview tomorrow at 3pm!") == "Interview", "event title without date/time")
+var linked = TaskItem(title: "Interview tomorrow at 3pm", box: 0, due: day(1))
+check(linked.time == 900, "task picks up its time")
+linked.externalID = "evt1"; linked.syncedDue = day(1); linked.syncedTime = 900
+let same = CalendarLink.EventInfo(start: CalendarLink.start(for: linked)!, allDay: false)
+check(CalendarLink.reconcile(linked, event: same) == .none, "in step → nothing to do")
+check(CalendarLink.reconcile(linked, event: nil) == .unlink, "event deleted → unlink")
+let movedEvent = CalendarLink.EventInfo(start: cal.date(byAdding: .hour, value: 16, to: day(3))!, allDay: false)
+check(CalendarLink.reconcile(linked, event: movedEvent) == .pullFromEvent(due: day(3), time: 960), "event moved → update task")
+var edited = linked; edited.due = day(2)
+check(CalendarLink.reconcile(edited, event: same) == .pushToEvent, "task changed → update event")
+var unlinkedTask = linked; unlinkedTask.externalID = nil
+check(CalendarLink.reconcile(unlinkedTask, event: same) == .none, "unlinked tasks are ignored")
+
 // --- profiles (RICK_DATA_DIR is a fresh temp folder; built-ins come from ./Profiles)
 UserDefaults.standard.removeObject(forKey: "activeProfile")
 let ids = Profiles.all().map(\.id)

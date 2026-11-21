@@ -14,9 +14,13 @@ struct TaskItem: Codable, Identifiable, Equatable {
     var createdAt = Date()
     var source = "typed"           // typed / calendar / mail
     var externalID: String?        // calendar event or email this came from
+    var time: Int?                 // minutes after midnight if a time was written ("at 3pm")
+    var syncedDue: Date?           // due date/time when last synced with the calendar event,
+    var syncedTime: Int?           //   used to tell which side changed
 
     init(title: String, box: Int, due: Date?, createdAt: Date = Date()) {
         self.title = title; self.box = box; self.due = due; self.createdAt = createdAt
+        self.time = DueParser.time(in: title)
     }
 }
 
@@ -144,6 +148,7 @@ struct MatrixData: Codable {
                             t.due = DueParser.dueDate(in: title, now: now)     // the "when" changed
                         }
                         t.title = title
+                        t.time = DueParser.time(in: title)
                     }
                     t.box = q
                     result.append(t)
@@ -212,6 +217,30 @@ struct MatrixData: Codable {
         boxes = newBoxes
         tasks.removeAll(where: \.done)
         return doneTasks
+    }
+
+    /// Rewrites the line of one task (keeps its id), e.g. to retarget its date words.
+    mutating func rewriteLine(of id: UUID, _ transform: (String) -> String) {
+        guard let k = tasks.firstIndex(where: { $0.id == id }) else { return }
+        let q = tasks[k].box
+        let index = tasks(inBox: q).firstIndex { $0.id == id }!
+        var item = -1
+        var newBoxes = boxes
+        newBoxes[q] = boxes[q].components(separatedBy: "\n").map { line in
+            guard !itemText(Substring(line)).isEmpty else { return line }
+            item += 1
+            guard item == index else { return line }
+            let newLine = transform(line)
+            tasks[k].title = itemText(Substring(newLine))
+            return newLine
+        }.joined(separator: "\n")
+        boxes = newBoxes
+    }
+
+    /// The task on a given item line of a box.
+    func task(box q: Int, itemIndex: Int) -> TaskItem? {
+        let list = tasks(inBox: q)
+        return list.indices.contains(itemIndex) ? list[itemIndex] : nil
     }
 
     /// Rewrites "tomorrow"/"today"/"yesterday" (and passed weekdays) in the text so they stay true.

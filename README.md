@@ -37,6 +37,14 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 **Loner Rick** (next to ADHD Mode) shows this right away: if you leave Rick alone for 10 minutes he gets sad, nags you about your to-do list, and stays slumped until you hover, click or drag him.
 Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
 
+## Calendar
+**🧪 ▸ Calendar ▸ Connect Calendar…** asks macOS for calendar access. It reads the Calendar app, so **Google calendars work too** once your Google account is added in System Settings ▸ Internet Accounts.
+- **Today strip** above the boxes: today's events with calendar colours; finished meetings fade.
+- **Heads-up** about 10 minutes before a meeting, and again when it starts (in your pet's voice). Off while the pet is hidden.
+- **Add to Calendar** (⌘⇧E, right-click, or the Calendar menu) puts the task under the cursor in your calendar. All-day, or timed if you wrote a time ("Interview tomorrow at 3pm").
+- **Two-way:** change the task's date words and the event moves; move the event in Calendar and the task's date and words follow ("by Thursday" → "by Friday"). Deleting either side just unlinks them; nothing is ever deleted from your calendar.
+- Choose which calendars to show, and which one new tasks go into.
+
 ## List background
 **Choose List Background…** puts any picture behind the four boxes (they turn slightly see-through with wider gaps). It's copied to `~/Library/Application Support/MochiPet/list-background.png`, outside this repo. **Remove List Background** goes back to plain.
 
@@ -69,5 +77,6 @@ Everything a character says lives in its `Personality.md`. Each `## section` is 
 - `Sources/DueDates.swift`: finding due dates in items and wording reminders
 - `Sources/Sprite.swift`: loading custom sprites
 - `Sources/Tasks.swift`: tasks with stable IDs behind the typed lines, migration, done/cleanup
+- `Sources/Calendar.swift`, `Sources/CalendarLink.swift`: EventKit access, Today strip data, task↔event sync rules
 - `Sources/Profiles.swift`: profile folders, switching, migration from the single-character setup
 - `Sources/main.swift`: app setup and menu

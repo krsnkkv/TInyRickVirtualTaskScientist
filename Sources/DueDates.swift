@@ -109,6 +109,71 @@ enum DueParser {
 
     private static var dateWordsRegex: NSRegularExpression?
 
+    private static let timePattern = "(?i)\\s*\\b(?:at\\s+)?(?:(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)|([01]?\\d|2[0-3]):([0-5]\\d)|noon)\\b"
+
+    /// Time of day written in an item, in minutes after midnight: "at 3pm" → 900, "9:30am" → 570,
+    /// "15:45" → 945, "noon" → 720. nil if there's no time.
+    static func time(in text: String) -> Int? {
+        guard let re = try? NSRegularExpression(pattern: timePattern),
+              let m = re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else { return nil }
+        func group(_ i: Int) -> String? { Range(m.range(at: i), in: text).map { String(text[$0]) } }
+        if let h12 = group(1).flatMap(Int.init), let ampm = group(3)?.lowercased(), (1...12).contains(h12) {
+            let minutes = group(2).flatMap(Int.init) ?? 0
+            let hour = (h12 % 12) + (ampm == "pm" ? 12 : 0)
+            return hour * 60 + minutes
+        }
+        if let h = group(4).flatMap(Int.init), let mm = group(5).flatMap(Int.init) { return h * 60 + mm }
+        if text.lowercased().contains("noon") { return 720 }
+        return nil
+    }
+
+    /// The item without date *or* time words (for calendar event titles).
+    static func stripDateAndTimeWords(_ text: String) -> String {
+        let noDate = stripDateWords(text)
+        guard let re = try? NSRegularExpression(pattern: timePattern) else { return noDate }
+        let s = re.stringByReplacingMatches(in: noDate, range: NSRange(noDate.startIndex..., in: noDate), withTemplate: "")
+            .trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "!?.,:;-–—@")))
+        return s.isEmpty ? noDate : s
+    }
+
+    /// Points an item's date (and time) words at a new date, e.g. after its calendar event was moved:
+    /// "Essay by Thursday" → "Essay by Friday"; "Call at 3pm" → "Call at 4pm". Adds nothing if the
+    /// item had no date words (the due date still changes behind the scenes).
+    static func retarget(_ line: String, due: Date, time: Int?, now: Date = Date()) -> String {
+        if dateWordsRegex == nil { _ = stripDateWords("") }
+        var out = line
+        let d = daysUntil(due, now: now)
+        let f = DateFormatter()
+        let word: String
+        switch d {
+        case 0: word = "today"
+        case 1: word = "tomorrow"
+        case 2...6: f.dateFormat = "EEEE"; word = f.string(from: due)
+        default: f.dateFormat = "EEE d MMM"; word = f.string(from: due)
+        }
+        if let re = dateWordsRegex, let m = re.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)),
+           let r = Range(m.range, in: out) {
+            let matched = String(out[r])
+            let prefix = matched.range(of: "^\\s*((by|on|due|before|until|for|this)\\s+)*", options: [.regularExpression, .caseInsensitive])
+                .map { String(matched[$0]) } ?? " "
+            out.replaceSubrange(r, with: prefix + word)
+        }
+        if let time, let re = try? NSRegularExpression(pattern: timePattern),
+           let m = re.firstMatch(in: out, range: NSRange(out.startIndex..., in: out)), let r = Range(m.range, in: out) {
+            let h = time / 60, mm = time % 60
+            let label = "\((h + 11) % 12 + 1)\(mm == 0 ? "" : String(format: ":%02d", mm))\(h < 12 ? "am" : "pm")"
+            out.replaceSubrange(r, with: " at " + label)
+        }
+        return out
+    }
+
+    /// "3:00 PM" style label for minutes after midnight.
+    static func timeLabel(_ minutes: Int) -> String {
+        var c = DateComponents(); c.hour = minutes / 60; c.minute = minutes % 60
+        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none
+        return Calendar.current.date(from: c).map(f.string) ?? ""
+    }
+
     /// Just the date words of an item, normalised ("by tomorrow", "thursday"…), "" if none.
     /// Used to tell whether an edit changed *when* something is due.
     static func datePhrase(_ text: String) -> String {
