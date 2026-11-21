@@ -13,7 +13,7 @@ import Cocoa
 /// Rows are numbered from 1; `"6:1-2"` means frames 1–2 of row 6.
 /// Without it: row 1 = standing, row 2 = walking.
 /// Known names: idle, walk, walkLeft, wave (hovered/happy), jump (dragged/falling), sleep,
-/// sad (overdue reminder), and any others (e.g. music, think) used as random idle moments.
+/// sad (overdue reminder), cryin ("You Cryin?" mode), and any others (e.g. music, think) used as random idle moments.
 struct SpriteSet {
     var anims: [String: [CGImage]] = [:]
     var idle: [CGImage] { anims["idle"] ?? [] }
@@ -23,7 +23,7 @@ struct SpriteSet {
 
     /// Extra animations played now and then while standing around.
     var idleExtras: [String] {
-        anims.keys.filter { !["idle", "walk", "walkLeft", "wave", "jump", "sleep", "sad"].contains($0) }.sorted()
+        anims.keys.filter { !["idle", "walk", "walkLeft", "wave", "jump", "sleep", "sad", "cryin"].contains($0) }.sorted()
     }
 
     init() {}

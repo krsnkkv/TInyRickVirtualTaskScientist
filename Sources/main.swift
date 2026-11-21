@@ -109,6 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         addToggle("Stay Still", #selector(toggleStill), pet.stayStill)
         addToggle("Anti-Gravity", #selector(toggleGravity), pet.antiGravity)
         addToggle("ADHD Mode", #selector(toggleADHD), pet.adhd)
+        if pet.canCry { addToggle("You Cryin?", #selector(toggleCryin), pet.cryin) }
         menu.addItem(withTitle: "Loner \(p.name)", action: #selector(demoSad), keyEquivalent: "").target = self
         menu.addItem(.separator())
 
@@ -414,6 +415,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc private func toggleADHD(_ item: NSMenuItem) {
         pet.adhd.toggle(); item.state = pet.adhd ? .on : .off
+    }
+    @objc private func toggleCryin(_ item: NSMenuItem) {
+        pet.cryin.toggle(); item.state = pet.cryin ? .on : .off
+        if pet.cryin { pet.say("You cryin?", for: 3) }
     }
 
     @objc private func openList() {

@@ -66,6 +66,8 @@ final class PetView: NSView {
     var specialStart: CGFloat = 0
     /// Play the special animation once, then stay on its last frame (e.g. sulking).
     var holdSpecial = false
+    /// "You Cryin?" mode: loop the sprite's `cryin` animation instead of idling.
+    var cryin = false
 
     var sprite: CGImage? { spriteFrame?.image }
 
@@ -88,6 +90,7 @@ final class PetView: NSView {
             if let sleep = a["sleep"] { return (loop(sleep, fps: 0.7), flip) }
             return (idle[0], flip)
         default:
+            if cryin, let frames = a["cryin"] { return (loop(frames, fps: 3), flip) }
             if let s = special, let frames = a[s] {
                 if holdSpecial {
                     let i = min(Int(max(0, t - specialStart) * 5), frames.count - 1)
@@ -527,6 +530,16 @@ final class PetController {
     var antiGravity = defaults.bool(forKey: Profiles.key("antiGravity")) { didSet { Self.defaults.set(antiGravity, forKey: Profiles.key("antiGravity")) } }
     /// Hyperactive: hops and zooms around, never naps.
     var adhd = defaults.bool(forKey: Profiles.key("adhd")) { didSet { Self.defaults.set(adhd, forKey: Profiles.key("adhd")); activityTime = 0 } }
+    /// "You Cryin?": stands in place doing the sprite's `cryin` animation over and over.
+    var cryin = defaults.bool(forKey: Profiles.key("cryin")) {
+        didSet {
+            Self.defaults.set(cryin, forKey: Profiles.key("cryin"))
+            view.cryin = cryin
+            if cryin, activity == .walk || activity == .sleep { activity = .idle; activityTime = 1 }
+        }
+    }
+    /// Whether this profile's sprite has a `cryin` animation (the menu only offers the mode then).
+    var canCry: Bool { view.spriteSet.anims["cryin"] != nil }
 
     /// Re-reads the settings after switching profile (each profile keeps its own).
     func reloadSettings() {
@@ -534,6 +547,7 @@ final class PetController {
         stayStill = Self.defaults.bool(forKey: Profiles.key("stayStill"))
         antiGravity = Self.defaults.bool(forKey: Profiles.key("antiGravity"))
         adhd = Self.defaults.bool(forKey: Profiles.key("adhd"))
+        cryin = Self.defaults.bool(forKey: Profiles.key("cryin"))
     }
 
     /// After this long without being hovered, clicked or dragged, Rick gets sad about your list.
@@ -868,6 +882,7 @@ final class PetController {
     /// Picks what to do next after standing around.
     private func decideNext(minX: CGFloat, maxX: CGFloat) {
         let roll = Double.random(in: 0...1)
+        if cryin, canCry { activity = .idle; activityTime = .random(in: 4...8); return }   // busy cryin'
         if adhd {
             if !antiGravity, roll < 0.45 {                       // boing
                 activity = .fall

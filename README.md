@@ -36,6 +36,9 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 - **ADHD Mode**: hops and zooms around and never naps.
 
 **Loner Rick** (next to ADHD Mode) shows this right away: if you leave Rick alone for 10 minutes he gets sad, nags you about your to-do list, and stays slumped until you hover, click or drag him.
+
+**You Cryin?** shows up in the menu when the profile's sprite has a `cryin` animation (e.g. `"cryin": "2:1-3"` in `sprite.json`). While it's on, the pet stays put and plays that animation over and over.
+
 Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
 
 ## Tasks | Calendar views
