@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Profiles.migrateIfNeeded()            // one-time: old single-character setup → profiles
         Personality.reload()
         pet.reloadSettings()
+        matrix.applyTheme()
         buildMenu()
         buildEditMenu()
 
@@ -126,8 +127,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Options: set-and-forget stuff, tucked away
         let options = NSMenu(title: "Options")
         func add(_ title: String, _ action: Selector) { options.addItem(withTitle: title, action: action, keyEquivalent: "").target = self }
-        add("Choose List Background…", #selector(chooseBackground))
-        add("Remove List Background", #selector(removeBackground))
+        let bg = NSMenu(title: "List Background")
+        for theme in ListTheme.allCases {
+            let i = bg.addItem(withTitle: theme.title, action: #selector(pickTheme(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = theme.rawValue
+            i.state = !matrix.hasPicture && theme == ListTheme.current ? .on : .off
+        }
+        bg.addItem(.separator())
+        let pic = bg.addItem(withTitle: "Choose Picture…", action: #selector(chooseBackground), keyEquivalent: "")
+        pic.target = self
+        pic.state = matrix.hasPicture ? .on : .off
+        if matrix.hasPicture { bg.addItem(withTitle: "Remove Picture", action: #selector(removeBackground), keyEquivalent: "").target = self }
+        options.addItem(withTitle: "List Background", action: nil, keyEquivalent: "").submenu = bg
         add("Show List File in Finder", #selector(revealFile))
         options.addItem(.separator())
         let login = options.addItem(withTitle: "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
@@ -285,6 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Personality.reload()
         pet.setSprite(SpriteStore.load())
         pet.reloadSettings()
+        matrix.applyTheme()                   // each profile has its own list background
         rebuildMenu()
         if !pet.isShown { pet.show() }
         pet.say(Personality.line(.greeting), for: 5)
@@ -435,12 +448,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         open.message = "Pick a picture to show behind your list."
         guard open.runModal() == .OK, let url = open.url else { return }
         if matrix.setBackground(from: url) {
+            rebuildMenu()
             openList()
         } else {
             pet.say("Hmm, I couldn't read that image 😕", for: 4)
         }
     }
-    @objc private func removeBackground() { matrix.setBackground(from: nil) }
+    @objc private func removeBackground() { matrix.setBackground(from: nil); rebuildMenu() }
+
+    @objc private func pickTheme(_ item: NSMenuItem) {
+        guard let raw = item.representedObject as? String, let theme = ListTheme(rawValue: raw) else { return }
+        if matrix.hasPicture { matrix.setBackground(from: nil) }    // a theme replaces the picture
+        matrix.applyTheme(theme)
+        rebuildMenu()
+        if !matrix.isOpen { openList() }
+    }
 
     @objc private func resetSprite() {
         SpriteStore.remove()

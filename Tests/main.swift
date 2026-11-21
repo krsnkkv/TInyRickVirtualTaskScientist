@@ -94,6 +94,19 @@ check(CalendarLink.reconcile(edited, event: same) == .pushToEvent, "task changed
 var unlinkedTask = linked; unlinkedTask.externalID = nil
 check(CalendarLink.reconcile(unlinkedTask, event: same) == .none, "unlinked tasks are ignored")
 
+// --- writing DONE
+check(TaskItem.saysDone("Pay fees DONE"), "DONE in capitals")
+check(TaskItem.saysDone("done: email Akila"), "done as first word")
+check(TaskItem.saysDone("Read papers – done ✓"), "done as last word")
+check(!TaskItem.saysDone("get it done by Friday"), "'done' mid-sentence doesn't count")
+var d = MatrixData(); d.boxes = [">> Pay fees by tomorrow", "", "", ""]; d.sync(now: sunday)
+d.boxes = [">> Pay fees by tomorrow DONE", "", "", ""]; d.sync(now: sunday)
+check(d.tasks.first?.done == true, "typing DONE marks it done")
+d.boxes = [">> Pay fees by tomorrow", "", "", ""]; d.sync(now: sunday)
+check(d.tasks.first?.done == false, "deleting DONE re-opens it")
+d.toggleDone(box: 0, itemIndexes: [0], now: sunday); d.sync(now: sunday)
+check(d.tasks.first?.done == true, "⌘⇧X done isn't undone by the DONE rule")
+
 // --- profiles (RICK_DATA_DIR is a fresh temp folder; built-ins come from ./Profiles)
 UserDefaults.standard.removeObject(forKey: "activeProfile")
 let ids = Profiles.all().map(\.id)

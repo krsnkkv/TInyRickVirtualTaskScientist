@@ -17,6 +17,16 @@ struct TaskItem: Codable, Identifiable, Equatable {
     var time: Int?                 // minutes after midnight if a time was written ("at 3pm")
     var syncedDue: Date?           // due date/time when last synced with the calendar event,
     var syncedTime: Int?           //   used to tell which side changed
+    var doneByWord: Bool?          // marked done because the text says DONE (removing the word re-opens it)
+
+    /// "Pay fees DONE", "done: email Akila", "Read papers – done ✓" → true.
+    /// "get it done by Friday" → false (lower-case "done" only counts as the first or last word).
+    static func saysDone(_ title: String) -> Bool {
+        let patterns = ["\\bDONE\\b",                                         // capitals anywhere
+                        "(?i)^[\\s✅✔️✓-]*done\\b",                              // first word
+                        "(?i)\\bdone[\\s!.:✅✔️✓)-]*$"]                         // last word
+        return patterns.contains { title.range(of: $0, options: .regularExpression) != nil }
+    }
 
     init(title: String, box: Int, due: Date?, createdAt: Date = Date()) {
         self.title = title; self.box = box; self.due = due; self.createdAt = createdAt
@@ -151,13 +161,26 @@ struct MatrixData: Codable {
                         t.time = DueParser.time(in: title)
                     }
                     t.box = q
-                    result.append(t)
+                    result.append(Self.applyDoneWord(t, now: now))
                 } else {
-                    result.append(TaskItem(title: title, box: q, due: DueParser.dueDate(in: title, now: now), createdAt: now))
+                    let t = TaskItem(title: title, box: q, due: DueParser.dueDate(in: title, now: now), createdAt: now)
+                    result.append(Self.applyDoneWord(t, now: now))
                 }
             }
         }
         tasks = result
+    }
+
+    /// Writing DONE marks a task done; deleting the word re-opens it (only if the word did it).
+    static func applyDoneWord(_ task: TaskItem, now: Date) -> TaskItem {
+        var t = task
+        if TaskItem.saysDone(t.title) {
+            if !t.done { t.done = true; t.doneAt = now }
+            t.doneByWord = true
+        } else if t.doneByWord == true {
+            t.done = false; t.doneAt = nil; t.doneByWord = nil
+        }
+        return t
     }
 
     /// Same task, just edited? Shares a start or an end of 3+ characters.

@@ -108,8 +108,10 @@ final class QuadrantView: NSView, NSTextViewDelegate {
 
     /// Slightly see-through so a list background shows behind the boxes.
     func setTranslucent(_ on: Bool) {
-        layer?.backgroundColor = color.withAlphaComponent(on ? 0.86 : 1).cgColor
-        layer?.cornerRadius = on ? 10 : 3
+        layer?.backgroundColor = color.withAlphaComponent(on ? 0.88 : 1).cgColor
+        layer?.cornerRadius = on ? 14 : 3
+        layer?.borderWidth = on ? 1.5 : 2.5
+        layer?.borderColor = on ? NSColor(white: 1, alpha: 0.55).cgColor : NSColor(hex: 0x1C2333).cgColor
     }
 
     var text: String {
@@ -283,8 +285,19 @@ final class MatrixController: NSObject, NSWindowDelegate {
 
     private func applyBackground(_ img: NSImage?) {
         grid.background = img
-        quads.forEach { $0.setTranslucent(img != nil) }
+        grid.theme = ListTheme.current
+        quads.forEach { $0.setTranslucent(img != nil || grid.theme.translucentBoxes) }
+        if let last = lastToday { setToday(last) }      // re-colour the Today strip
     }
+
+    /// Switches the list's theme (for the active profile) or re-applies it after a profile switch.
+    func applyTheme(_ theme: ListTheme? = nil) {
+        if let theme { ListTheme.current = theme }
+        applyBackground(grid.background)
+    }
+
+    var hasPicture: Bool { grid.background != nil }
+    private var lastToday: [DayEvent]?
 
     private func save() {
         data.urgentImportant = quads[0].text
@@ -393,20 +406,22 @@ final class MatrixController: NSObject, NSWindowDelegate {
 
     /// Fills the Today strip (empty list hides it).
     func setToday(_ events: [DayEvent]) {
+        lastToday = events
+        let ink = grid.background != nil ? NSColor.white : grid.theme.ink
         let label = grid.todayLabel
         guard !events.isEmpty else { label.isHidden = true; grid.needsLayout = true; return }
         let out = NSMutableAttributedString(string: "📅 Today  ", attributes: [
-            .font: NSFont.systemFont(ofSize: 12, weight: .bold), .foregroundColor: NSColor.white])
+            .font: NSFont.systemFont(ofSize: 12, weight: .bold), .foregroundColor: ink])
         let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none
         let now = Date()
         for (i, e) in events.enumerated() {
-            if i > 0 { out.append(NSAttributedString(string: "   ·   ", attributes: [.foregroundColor: NSColor(white: 1, alpha: 0.5)])) }
+            if i > 0 { out.append(NSAttributedString(string: "   ·   ", attributes: [.foregroundColor: ink.withAlphaComponent(0.5)])) }
             let past = !e.allDay && e.end < now
             out.append(NSAttributedString(string: "● ", attributes: [.foregroundColor: e.color ?? .systemBlue, .font: NSFont.systemFont(ofSize: 11)]))
             let when = e.allDay ? "" : f.string(from: e.start) + " "
             out.append(NSAttributedString(string: when + e.title, attributes: [
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-                .foregroundColor: NSColor(white: 1, alpha: past ? 0.45 : 0.95)]))
+                .foregroundColor: ink.withAlphaComponent(past ? 0.45 : 0.95)]))
         }
         label.attributedStringValue = out
         label.toolTip = events.map { ($0.allDay ? "All day" : f.string(from: $0.start)) + "  " + $0.title }.joined(separator: "\n")
@@ -520,6 +535,7 @@ final class MatrixController: NSObject, NSWindowDelegate {
 final class MatrixGridView: NSView {
     private let quads: [QuadrantView]
     var background: NSImage? { didSet { needsLayout = true; needsDisplay = true } }
+    var theme: ListTheme = .plain { didSet { needsLayout = true; needsDisplay = true } }
 
     /// "📅 Today: …" line above the boxes (hidden when there's nothing to show).
     let todayLabel: NSTextField = {
@@ -531,9 +547,10 @@ final class MatrixGridView: NSView {
     }()
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor(hex: 0x1C2333).setFill()
-        bounds.fill()
-        guard let img = background, img.size.width > 0, img.size.height > 0 else { return }
+        guard let img = background, img.size.width > 0, img.size.height > 0 else {
+            theme.draw(in: bounds)
+            return
+        }
         // aspect-fill: cover the whole window, cropping the overflow
         let s = max(bounds.width / img.size.width, bounds.height / img.size.height)
         let size = NSSize(width: img.size.width * s, height: img.size.height * s)
@@ -551,7 +568,8 @@ final class MatrixGridView: NSView {
     override func layout() {
         super.layout()
         let strip: CGFloat = todayLabel.isHidden ? 0 : 26
-        let gap: CGFloat = background == nil ? 4 : 14, top: CGFloat = 28 + strip   // wider gutters let the picture show
+        let roomy = background != nil || theme != .plain
+        let gap: CGFloat = roomy ? 14 : 4, top: CGFloat = 28 + strip   // wider gutters let the picture show
         todayLabel.frame = NSRect(x: 12, y: bounds.height - 28 - strip + 4, width: bounds.width - 24, height: 20)
         let w = (bounds.width - gap * 3) / 2
         let h = (bounds.height - top - gap * 2) / 2

@@ -22,6 +22,7 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 - **Click Rick** to open or close your list. Click inside a box and start typing; **Enter** starts a new `>>` item, and pressing Enter on an empty item removes the bullet.
 - **Due dates are picked up automatically** from what you write: `today`, `tomorrow`, a weekday (`Thursday`, `this thu` = the coming one, today counts), `next thursday` (the week after), or a date like `20 Nov`. A weekday is fixed to a real date when you write it, so "Thursday" written on Sunday doesn't roll over to next week.
 - **Mark things done with ⌘⇧X:** select one or more items and press ⌘⇧X to strike them through (again to undo). Done items stay in the list, greyed out, and Rick stops nagging about them. ⌘C/⌘V/⌘Z work in the list too.
+- **Or just write DONE:** "Pay fees DONE", "done: email Akila" or "Read papers – done ✓" strikes it through too ("get it done by Friday" doesn't count). Delete the word and it's open again.
 - **Date words stay true:** "by tomorrow" becomes "by today" after midnight, then "by yesterday", then the actual date ("by Mon 16 Nov"). A weekday that has passed turns into its date as well.
 - Items due soon are coloured (red = overdue, orange = today, amber = within 2 days), and each box shows its next due date.
 - **Reminders:** every 15–25 minutes Rick brings up something overdue or due within 3 days, waking up if it's napping. **What's Due Soon?** in the menu makes Rick read out your whole list, one bubble per item: Urgent & Important first, then Urgent & Not Important, Not Urgent & Important, Not Urgent & Not Important. Each box is sorted by due date, and done items are skipped.
@@ -46,7 +47,7 @@ Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" →
 - Choose which calendars to show, and which one new tasks go into.
 
 ## List background
-**Choose List Background…** puts any picture behind the four boxes (they turn slightly see-through with wider gaps). It's copied to `~/Library/Application Support/MochiPet/list-background.png`, outside this repo. **Remove List Background** goes back to plain.
+**Options ▸ List Background** picks a theme painted by the app: **Space** (deep purple sky, nebulas, stars; the default for Rick/Grumpy Genius), **Garden** (cream and mint with floating leaves; Mochi's default) or **Plain**. Each profile remembers its own. **Choose Picture…** puts any picture behind the four boxes (they turn slightly see-through with wider gaps). It's copied to `~/Library/Application Support/MochiPet/list-background.png`, outside this repo. **Remove List Background** goes back to plain.
 
 ## Profiles (alter egos)
 The pet can be different characters. **🧪 menu ▸ Profile** switches between them; each keeps its own look, voice and settings (Mute, ADHD…).
