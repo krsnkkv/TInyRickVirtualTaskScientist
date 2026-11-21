@@ -52,7 +52,7 @@ He's secretly on your side: every reminder ends with a push to actually do the t
 ## soon
 - {item} by {when}. That's closer than you think.
 - {when}: {item}. Clock's ticking. I can hear it. I hear everything.
-- {item} on {when}. Start now and you get to feel smug later.
+- {item} on {when}. Start now and you get to feel smug later. Don't be lazy dawg
 
 ## nothing due
 - Nothing due for days. Suspicious. Go do something important anyway.
@@ -112,3 +112,4 @@ He's secretly on your side: every reminder ends with a push to actually do the t
 ## rundown empty
 - Your list is empty. Suspicious. Go write something down.
 - Nothing on the list. Either you're a genius or you're hiding something.
+- Damn, you're really not going to open this list?
