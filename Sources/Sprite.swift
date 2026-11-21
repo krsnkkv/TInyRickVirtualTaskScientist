@@ -14,8 +14,22 @@ import Cocoa
 /// Without it: row 1 = standing, row 2 = walking.
 /// Known names: idle, walk, walkLeft, wave (hovered/happy), jump (dragged/falling), sleep,
 /// sad (overdue reminder), cryin ("You Cryin?" mode), and any others (e.g. music, think) used as random idle moments.
+/// A profile's own mode (sprite.json `"modes"`): its own rows for standing, walking and
+/// random moves, plus how it behaves.
+struct SpriteMode {
+    enum Behaviour: String { case normal, still, hyper }
+    var name: String
+    var behaviour: Behaviour = .normal
+    var anims: [String: [CGImage]] = [:]
+}
+
 struct SpriteSet {
     var anims: [String: [CGImage]] = [:]
+    /// Modes from sprite.json (empty for most sprites). The first one is the default.
+    var modes: [SpriteMode] = []
+    /// Animations before any mode was applied.
+    private var base: [String: [CGImage]] = [:]
+    static let standardNames = ["idle", "walk", "walkLeft", "wave", "jump", "sleep", "sad", "cryin"]
     var idle: [CGImage] { anims["idle"] ?? [] }
     var walk: [CGImage] { anims["walk"] ?? idle }
     var isEmpty: Bool { idle.isEmpty }
@@ -23,7 +37,7 @@ struct SpriteSet {
 
     /// Extra animations played now and then while standing around.
     var idleExtras: [String] {
-        anims.keys.filter { !["idle", "walk", "walkLeft", "wave", "jump", "sleep", "sad", "cryin"].contains($0) }.sorted()
+        anims.keys.filter { !Self.standardNames.contains($0) }.sorted()
     }
 
     init() {}
@@ -32,13 +46,38 @@ struct SpriteSet {
         guard !rows.isEmpty else { return }
         anims["idle"] = rows[0]
         if rows.count > 1, rows[1].count >= 2 { anims["walk"] = rows[1] }
-        for (name, value) in mapping ?? [:] {
+        for (name, value) in mapping ?? [:] where !["modes", "layout"].contains(name) {
             if let frames = Self.select(value, from: rows) { anims[name] = frames }
+        }
+        base = anims
+        // "modes": [{ "name": "Party", "behaviour": "still", "idle": 8, "walk": 9, "extras": [8, 9] }, …]
+        for m in mapping?["modes"] as? [[String: Any]] ?? [] {
+            guard let name = m["name"] as? String else { continue }
+            var mode = SpriteMode(name: name, behaviour: (m["behaviour"] as? String).flatMap(SpriteMode.Behaviour.init) ?? .normal)
+            for (key, value) in m where Self.standardNames.contains(key) {
+                if let frames = Self.select(value, from: rows) { mode.anims[key] = frames }
+            }
+            for (i, value) in (m["extras"] as? [Any] ?? []).enumerated() {
+                if let frames = Self.select(value, from: rows) { mode.anims["extra\(i + 1)"] = frames }
+            }
+            modes.append(mode)
         }
     }
 
-    /// 3 → row 3; "6:1-2" → frames 1–2 of row 6 (all 1-based).
+    /// This sprite as it looks in a mode: the mode's rows replace the defaults, and its extras
+    /// replace the random idle moves.
+    func applying(_ mode: SpriteMode) -> SpriteSet {
+        var out = self
+        out.anims = base.filter { Self.standardNames.contains($0.key) }.merging(mode.anims) { $1 }
+        return out
+    }
+
+    /// 3 → row 3; "6:1-2" → frames 1–2 of row 6 (all 1-based); [1, "2:1-3"] → those one after another.
     private static func select(_ value: Any, from rows: [[CGImage]]) -> [CGImage]? {
+        if let list = value as? [Any] {
+            let all = list.compactMap { select($0, from: rows) }.flatMap { $0 }
+            return all.isEmpty ? nil : all
+        }
         var row: Int?, range: ClosedRange<Int>?
         if let n = value as? Int { row = n }
         else if let s = value as? String {
@@ -64,7 +103,8 @@ enum SpriteStore {
 
     static func load() -> SpriteSet {
         guard let img = NSImage(contentsOf: file) else { return SpriteSet() }
-        return SpriteSet(rows: frameRows(from: img), mapping: mapping(at: mappingFile))
+        let map = mapping(at: mappingFile)
+        return SpriteSet(rows: frameRows(from: img, layout: map?["layout"] as? String), mapping: map)
     }
 
     private static func mapping(at url: URL) -> [String: Any]? {
@@ -78,7 +118,7 @@ enum SpriteStore {
         guard let img = NSImage(contentsOf: url) else { return SpriteSet() }
         let sidecar = url.deletingPathExtension().appendingPathExtension("json")
         let map = mapping(at: sidecar)
-        let set = SpriteSet(rows: frameRows(from: img), mapping: map)
+        let set = SpriteSet(rows: frameRows(from: img, layout: map?["layout"] as? String), mapping: map)
         guard !set.isEmpty, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { return SpriteSet() }
         let profile = Profiles.writable(Profiles.active)             // built-ins get a personal copy first
@@ -102,10 +142,13 @@ enum SpriteStore {
     static func frames(from image: NSImage) -> [CGImage] { frameRows(from: image).flatMap { $0 } }
 
     /// Frames grouped by sheet row, top row first. A single image gives one row with one frame.
-    static func frameRows(from image: NSImage) -> [[CGImage]] {
+    /// `layout: "rows"` (in sprite.json) is for sheets whose frames aren't on a grid: each strip of
+    /// figures separated by empty space is a row, and each figure in it a frame.
+    static func frameRows(from image: NSImage, layout: String? = nil) -> [[CGImage]] {
         guard let px = Pixels(image) else { return [] }
         px.keyOutBackground()
         guard let all = px.makeImage() else { return [] }
+        if layout == "rows" { return bandRows(px, all) }
 
         if let grid = px.detectGrid() {
             // Cut every cell; keep the ones holding a full-height figure.
@@ -142,8 +185,76 @@ enum SpriteStore {
     }
 }
 
+extension SpriteStore {
+    /// Slices a free-form sheet: horizontal bands of figures → rows, gaps between figures → frames.
+    /// Every frame is padded onto the same canvas (bottom of its band at the bottom, centred), so
+    /// nothing jitters or changes size between frames.
+    fileprivate static func bandRows(_ px: Pixels, _ all: CGImage) -> [[CGImage]] {
+        // 1. bands: runs of rows that have pixels; tiny gaps (stray pixels) are bridged
+        let rowHas = (0..<px.h).map { y in (0..<px.w).contains { px.opaque($0, y) } }
+        var bands = runs(rowHas, bridge: 2)
+        guard !bands.isEmpty else { return [] }
+        let typical = bands.map(\.count).sorted()[(bands.count - 1) / 2]      // lower median
+        bands = bands.filter { $0.count >= max(4, typical / 4) }          // lone specks
+        // two rows that touch come out as one extra-tall band: cut it where it's thinnest
+        let rowCount = (0..<px.h).map { y in (0..<px.w).reduce(0) { $0 + (px.opaque($1, y) ? 1 : 0) } }
+        var split: [Range<Int>] = []
+        var todo = bands
+        while let band = todo.first {
+            todo.removeFirst()
+            guard band.count > typical * 3 / 2 else { split.append(band); continue }
+            let inner = (band.lowerBound + typical / 2)..<(band.upperBound - typical / 2)
+            let cut = inner.min { rowCount[$0] < rowCount[$1] } ?? band.lowerBound + band.count / 2
+            todo.insert(contentsOf: [band.lowerBound..<cut, cut..<band.upperBound], at: 0)
+        }
+        bands = split
+        // 2. frames: runs of columns with pixels inside each band; drop small bits (props, sparkles)
+        var rows: [[(x: Range<Int>, y: Range<Int>)]] = []
+        for band in bands {
+            let colHas = (0..<px.w).map { x in band.contains { px.opaque(x, $0) } }
+            var pieces = runs(colHas, bridge: 1).map { x -> (x: Range<Int>, y: Range<Int>, n: Int) in
+                var n = 0
+                for y in band { for xx in x where px.opaque(xx, y) { n += 1 } }
+                return (x, band, n)
+            }
+            let biggest = pieces.map(\.n).max() ?? 0
+            pieces = pieces.filter { Double($0.n) >= Double(biggest) * 0.3 }
+            if !pieces.isEmpty { rows.append(pieces.map { ($0.x, $0.y) }) }
+        }
+        // 3. one canvas for everything
+        let cw = rows.flatMap { $0 }.map(\.x.count).max() ?? 0
+        let ch = rows.flatMap { $0 }.map(\.y.count).max() ?? 0
+        guard cw > 0, ch > 0 else { return [] }
+        return rows.map { row in
+            row.compactMap { f in
+                guard let piece = all.cropping(to: CGRect(x: f.x.lowerBound, y: f.y.lowerBound, width: f.x.count, height: f.y.count)),
+                      let c = CGContext(data: nil, width: cw, height: ch, bitsPerComponent: 8, bytesPerRow: 0,
+                                        space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+                c.interpolationQuality = .none
+                c.draw(piece, in: CGRect(x: (cw - f.x.count) / 2, y: 0, width: f.x.count, height: f.y.count))
+                return c.makeImage()
+            }
+        }
+    }
+
+    /// Ranges where `has` is true, joining ranges separated by at most `bridge` false values.
+    private static func runs(_ has: [Bool], bridge: Int) -> [Range<Int>] {
+        var out: [Range<Int>] = []
+        var i = 0
+        while i < has.count {
+            guard has[i] else { i += 1; continue }
+            var j = i
+            while j < has.count && has[j] { j += 1 }
+            if let last = out.last, i - last.upperBound <= bridge { out[out.count - 1] = last.lowerBound..<j } else { out.append(i..<j) }
+            i = j
+        }
+        return out
+    }
+}
+
 /// RGBA pixel buffer (row 0 = top of the image) with the helpers the slicer needs.
-private final class Pixels {
+fileprivate final class Pixels {
     let w: Int, h: Int
     private let ctx: CGContext
     private let b: UnsafeMutablePointer<UInt8>

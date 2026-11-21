@@ -518,7 +518,7 @@ final class PetController {
     private var timer: Timer?
 
     static let size = NSSize(width: 230, height: 210)
-    private var walkSpeed: CGFloat { adhd ? 120 : 40 }
+    private var walkSpeed: CGFloat { hyper ? 120 : 40 }
 
     // MARK: options (remembered between launches)
     private static let defaults = UserDefaults.standard
@@ -540,6 +540,36 @@ final class PetController {
     }
     /// Whether this profile's sprite has a `cryin` animation (the menu only offers the mode then).
     var canCry: Bool { view.spriteSet.anims["cryin"] != nil }
+
+    // MARK: profile modes (e.g. Pinkie's), from the sprite's sprite.json
+
+    /// The sprite with all its modes; `view.spriteSet` is it with the current mode applied.
+    private var fullSet = SpriteSet()
+    private(set) var mode: SpriteMode?
+    var modes: [SpriteMode] { fullSet.modes }
+    var hasModes: Bool { !fullSet.modes.isEmpty }
+
+    /// Behaviour actually in effect: a profile with modes ignores the Stay Still / ADHD toggles.
+    private var still: Bool { hasModes ? mode?.behaviour == .still : stayStill }
+    private var hyper: Bool { hasModes ? mode?.behaviour == .hyper : adhd }
+
+    private func applyMode(named name: String?) {
+        mode = fullSet.modes.first { $0.name == name } ?? fullSet.modes.first
+        view.spriteSet = mode.map { fullSet.applying($0) } ?? fullSet
+    }
+
+    /// Switches mode (remembered per profile) and announces it.
+    func setMode(_ name: String) {
+        Self.defaults.set(name, forKey: Profiles.key("mode"))
+        applyMode(named: name)
+        view.special = nil; view.holdSpecial = false; specialTime = 0
+        if sulking { sulking = false }
+        touched()
+        if still, activity == .walk { activity = .idle }
+        if activity == .sleep { activity = .idle }
+        activityTime = 0.5
+        say(Personality.line(.modeChanged, item: name), for: 3)
+    }
 
     /// Re-reads the settings after switching profile (each profile keeps its own).
     func reloadSettings() {
@@ -595,7 +625,8 @@ final class PetController {
     }
 
     func setSprite(_ set: SpriteSet) {
-        view.spriteSet = set
+        fullSet = set
+        applyMode(named: Self.defaults.string(forKey: Profiles.key("mode")))
     }
 
     init() {
@@ -679,7 +710,7 @@ final class PetController {
         default: break
         }
         if view.squash > 0 { return 1.0 / 30.0 }                 // landing squish
-        if muted && stayStill { return 1.0 / 4.0 }               // lowest-power mode
+        if muted && still { return 1.0 / 4.0 }               // lowest-power mode
         if activity == .sleep { return 1.0 / 6.0 }
         if view.spriteSet.isEmpty { return 1.0 / 15.0 }           // drawn pet breathes and blinks
         return 1.0 / 10.0                                          // sprite frames run at 4–6 fps
@@ -804,14 +835,14 @@ final class PetController {
                 if thrown, abs(vy) > 700 { say(Personality.line(.landed), for: 2.5) }
                 thrown = false
                 vy = 0; vx = 0
-                activity = .idle; activityTime = adhd ? .random(in: 0.2...0.8) : 1.2
+                activity = .idle; activityTime = hyper ? .random(in: 0.2...0.8) : 1.2
             }
             window.setFrameOrigin(origin)
         case .walk:
-            if chatOpen || hovering || chatMood != nil || stayStill { activity = .idle; activityTime = 1; break }
+            if chatOpen || hovering || chatMood != nil || still { activity = .idle; activityTime = 1; break }
             let dx = targetX - origin.x
             if abs(dx) < 2 {
-                activity = .idle; activityTime = adhd ? .random(in: 0.3...1.2) : .random(in: 2...6)
+                activity = .idle; activityTime = hyper ? .random(in: 0.3...1.2) : .random(in: 2...6)
             } else {
                 view.facing = dx > 0 ? 1 : -1
                 origin.x += view.facing * min(abs(dx), walkSpeed * CGFloat(dt))
@@ -883,27 +914,30 @@ final class PetController {
     private func decideNext(minX: CGFloat, maxX: CGFloat) {
         let roll = Double.random(in: 0...1)
         if cryin, canCry { activity = .idle; activityTime = .random(in: 4...8); return }   // busy cryin'
-        if adhd {
+        if hyper {
             if !antiGravity, roll < 0.45 {                       // boing
                 activity = .fall
                 vy = .random(in: 650...950)
                 vx = .random(in: 80...220) * (Bool.random() ? 1 : -1)
                 view.facing = vx > 0 ? 1 : -1
-            } else if !stayStill {
+            } else if !still {
                 activity = .walk
                 targetX = .random(in: minX...maxX)
             } else {
                 activityTime = .random(in: 0.3...1)
-                play(["wave", "jump", "think"].randomElement()!, for: 1.5)   // fidget in place
+                play((["wave", "jump", "think"] + view.spriteSet.idleExtras).randomElement()!, for: 1.5)   // fidget in place
             }
             return
         }
         if activity == .idle, roll < 0.12 {
             activity = .sleep; activityTime = .random(in: 10...20)
-        } else if stayStill || roll < 0.45 {
-            // hang around: usually strum the guitar if the sprite has one
+        } else if still || roll < 0.45 {
+            // hang around: usually strum the guitar if the sprite has one (or do a random move)
             activity = .idle; activityTime = .random(in: 6...12)
-            if Double.random(in: 0...1) < 0.7 { play("music", for: activityTime) }
+            if Double.random(in: 0...1) < 0.7,
+               let move = view.spriteSet.anims["music"] != nil ? "music" : view.spriteSet.idleExtras.randomElement() {
+                play(move, for: activityTime)
+            }
         } else {
             activity = .walk
             targetX = .random(in: minX...maxX)

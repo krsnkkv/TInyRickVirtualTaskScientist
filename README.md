@@ -12,6 +12,7 @@ Builds Rick, installs him to `~/Applications` (so Spotlight finds him and **Star
 ## Shortcuts & commands
 - **⌃⌘C**: open/close your list (works from any app)
 - **⌃⌘R**: send Rick away / bring him back (while away he does no work at all)
+- **⌃⌘P**: pop up the modes list next to the pet (↑ ↓ to move, Return to pick, Esc to close)
 - `rick` / `rick stop` / `rick restart` / `rick status` in the terminal
 - **Start at Login** in the 🧪 menu keeps him around after a reboot
 - **Options** submenu: sprite, list background, show list file, Start at Login, and **Restart Rick**, which quits and reopens him (re-reads Personality.md and the sprite)
@@ -38,6 +39,18 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 **Loner Rick** (next to ADHD Mode) shows this right away: if you leave Rick alone for 10 minutes he gets sad, nags you about your to-do list, and stays slumped until you hover, click or drag him.
 
 **You Cryin?** shows up in the menu when the profile's sprite has a `cryin` animation (e.g. `"cryin": "2:1-3"` in `sprite.json`). While it's on, the pet stays put and plays that animation over and over.
+
+**Profile modes:** a sprite can bring its own set of modes, which replace Stay Still / ADHD / Loner in the menu (as "<Name> Modes"). In `sprite.json`:
+
+```json
+"modes": [
+  { "name": "Normal", "idle": 1, "walk": 4, "extras": [2, 3, 5] },
+  { "name": "Hyper", "behaviour": "hyper", "extras": [1, 2, 3, 5, 6] },
+  { "name": "Party", "behaviour": "still", "idle": 8, "extras": [8, 9] }
+]
+```
+
+Each mode can set any of the usual rows (`idle`, `walk`, `sad`, …); `extras` are rows played as random moves; `behaviour` is `normal`, `still` (never walks) or `hyper` (like ADHD). A row can also be a list, e.g. `"idle": [1, "3:1-2"]`. Sheets whose frames aren't on an even grid can add `"layout": "rows"`: each strip of figures becomes a row and each figure a frame.
 
 Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
 

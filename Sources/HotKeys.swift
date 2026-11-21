@@ -9,7 +9,7 @@ enum HotKeys {
     private static var installed = false
 
     /// Key codes for the letters we use (US layout positions).
-    enum Key: UInt32 { case c = 8, l = 37, r = 15 }
+    enum Key: UInt32 { case c = 8, l = 37, r = 15, p = 35 }
 
     /// ⌃⌘ + key.
     static func controlCommand(_ key: Key, _ handler: @escaping () -> Void) {

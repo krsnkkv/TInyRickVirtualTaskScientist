@@ -10,6 +10,7 @@ enum Moment: String, CaseIterable {
     case cleaned, cleanNothing = "clean nothing"
     case meetingSoon = "meeting soon", meetingNow = "meeting now", addedToCalendar = "added to calendar"
     case calendarConnected = "calendar connected", calendarDenied = "calendar denied", needsDate = "needs a date"
+    case modeChanged = "mode changed"
 }
 
 /// What the pet says, loaded from Personality.md.
@@ -80,6 +81,7 @@ enum Personality {
 
     private static let fallback: [Moment: [String]] = [
         .greeting: ["Rick's here. Click me for your list."],
+        .modeChanged: ["{item}!"],
         .hover: ["Click me. The list's in there."],
         .idle: ["*burp* ...anyway."],
         .overdue: ["{item} was due {when}. Let's fix it."],

@@ -55,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Global shortcuts: ⌃⌘R = send Rick away / bring him back, ⌃⌘C = open/close the checklist
         HotKeys.controlCommand(.r) { [weak self] in self?.toggleHidden() }
         HotKeys.controlCommand(.c) { [weak self] in self?.toggleList() }
+        HotKeys.controlCommand(.p) { [weak self] in self?.popUpModes() }
 
         pet.start()
     }
@@ -106,11 +107,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         addShortcutItem("Hide / Show \(p.name)", #selector(toggleHidden), "r")
         menu.addItem(.separator())
         addToggle("Mute \(p.name)", #selector(toggleMute), pet.muted)
-        addToggle("Stay Still", #selector(toggleStill), pet.stayStill)
         addToggle("Anti-Gravity", #selector(toggleGravity), pet.antiGravity)
-        addToggle("ADHD Mode", #selector(toggleADHD), pet.adhd)
-        if pet.canCry { addToggle("You Cryin?", #selector(toggleCryin), pet.cryin) }
-        menu.addItem(withTitle: "Loner \(p.name)", action: #selector(demoSad), keyEquivalent: "").target = self
+        if pet.hasModes {
+            // a profile with its own modes (e.g. Pinkie) gets those instead of the usual ones
+            let item = menu.addItem(withTitle: "\(p.name) Modes", action: nil, keyEquivalent: "")
+            item.submenu = modesMenu()
+        } else {
+            for item in modesMenu().items { menu.addItem(item.copy() as! NSMenuItem) }
+        }
         menu.addItem(.separator())
 
         menu.addItem(withTitle: "Calendar", action: nil, keyEquivalent: "").submenu = calendarMenu()
@@ -364,6 +368,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         relaunch.arguments = ["-c", "sleep 0.6; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
         try? relaunch.run()
         NSApp.terminate(nil)
+    }
+
+    /// The modes: the profile's own (sprite.json "modes"), or the usual Stay Still / ADHD / Loner.
+    private func modesMenu() -> NSMenu {
+        let m = NSMenu(title: "Modes")
+        let p = Profiles.active
+        func add(_ title: String, _ action: Selector, _ on: Bool = false) -> NSMenuItem {
+            let i = m.addItem(withTitle: title, action: action, keyEquivalent: "")
+            i.target = self; i.state = on ? .on : .off
+            return i
+        }
+        if pet.hasModes {
+            for mode in pet.modes {
+                add(mode.name, #selector(chooseMode(_:)), mode.name == pet.mode?.name).representedObject = mode.name
+            }
+            m.addItem(.separator())
+            m.addItem(withTitle: "⌃⌘P opens this anywhere (↑ ↓, Return)", action: nil, keyEquivalent: "").isEnabled = false
+        } else {
+            _ = add("Stay Still", #selector(toggleStill), pet.stayStill)
+            _ = add("ADHD Mode", #selector(toggleADHD), pet.adhd)
+            if pet.canCry { _ = add("You Cryin?", #selector(toggleCryin), pet.cryin) }
+            _ = add("Loner \(p.name)", #selector(demoSad))
+        }
+        return m
+    }
+
+    @objc private func chooseMode(_ item: NSMenuItem) {
+        guard let name = item.representedObject as? String else { return }
+        if !pet.isShown { pet.show() }
+        pet.setMode(name)
+        rebuildMenu()
+    }
+
+    /// ⌃⌘P: the modes list pops up next to the pet; ↑/↓ to move, Return to pick, Esc to close.
+    private func popUpModes() {
+        if !pet.isShown { pet.show() }
+        let m = modesMenu()
+        NSApp.activate(ignoringOtherApps: true)
+        let f = pet.window.frame
+        let current = m.items.first { $0.state == .on }
+        m.popUp(positioning: current, at: CGPoint(x: f.midX + 40, y: f.minY + 130), in: nil)
+        rebuildMenu()                                     // keep the 🧪 menu's ticks in step
     }
 
     /// Loner Rick: the "ignored for a while" sulk, right now. Hover or click him to cheer him up.

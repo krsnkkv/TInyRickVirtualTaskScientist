@@ -1,4 +1,4 @@
-import Foundation
+import Cocoa
 
 // Tiny test runner: ./test.sh
 var failures = 0, passes = 0
@@ -141,6 +141,30 @@ check(Profiles.all().first { $0.id == "mochi" }?.builtIn == false, "personal cop
 Profiles.activeID = "mochi"; Personality.reload()
 check(Personality.lines[.greeting]?.contains { $0.contains("🌱") } == true, "switching changes the voice")
 UserDefaults.standard.removeObject(forKey: "activeProfile")
+
+// --- sprite sheets: free-form rows + profile modes
+// 3 strips of blobs on a green background: 2 frames, 3 frames (one tiny speck), 1 frame; strips 2+3 touch.
+let sheet = NSImage(size: NSSize(width: 120, height: 90), flipped: true) { _ in
+    NSColor(srgbRed: 0, green: 0.8, blue: 0.3, alpha: 1).setFill(); NSRect(x: 0, y: 0, width: 120, height: 90).fill()
+    NSColor.systemPink.setFill()
+    for x in [5, 40] { NSRect(x: x, y: 2, width: 20, height: 24).fill() }
+    for x in [5, 40, 75] { NSRect(x: x, y: 34, width: 20, height: 26).fill() }
+    NSRect(x: 105, y: 50, width: 2, height: 2).fill()
+    NSRect(x: 5, y: 60, width: 20, height: 28).fill()       // touches the row above
+    return true
+}
+let bandRows = SpriteStore.frameRows(from: sheet, layout: "rows")
+check(bandRows.map(\.count) == [2, 3, 1], "free-form sheet slices into rows (\(bandRows.map(\.count)))")
+check(Set(bandRows.flatMap { $0 }.map { "\($0.width)x\($0.height)" }).count == 1, "every frame gets the same canvas")
+
+let modeSet = SpriteSet(rows: bandRows, mapping: [
+    "idle": 1, "sad": 2, "layout": "rows",
+    "modes": [["name": "Calm", "extras": [2]],
+              ["name": "Wild", "behaviour": "hyper", "idle": [1, "3:1"], "extras": [2, 3]]]])
+check(modeSet.modes.map(\.name) == ["Calm", "Wild"] && modeSet.modes[1].behaviour == .hyper, "modes read from sprite.json")
+let wild = modeSet.applying(modeSet.modes[1])
+check(wild.idle.count == 3 && wild.idleExtras == ["extra1", "extra2"] && wild.anims["sad"]?.count == 3, "a mode swaps rows, keeps the rest")
+check(modeSet.applying(modeSet.modes[0]).idle.count == 2, "switching back restores the default rows")
 
 print(failures == 0 ? "✓ all \(passes) checks passed" : "\(failures) failed, \(passes) passed")
 exit(failures == 0 ? 0 : 1)
