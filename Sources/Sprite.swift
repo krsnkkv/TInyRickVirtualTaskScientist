@@ -58,8 +58,9 @@ struct SpriteSet {
 }
 
 enum SpriteStore {
-    static var file: URL { MatrixStore.dir.appendingPathComponent("sprite.png") }
-    static var mappingFile: URL { MatrixStore.dir.appendingPathComponent("sprite.json") }
+    /// The active profile's sprite files.
+    static var file: URL { Profiles.active.spriteFile }
+    static var mappingFile: URL { Profiles.active.mappingFile }
 
     static func load() -> SpriteSet {
         guard let img = NSImage(contentsOf: file) else { return SpriteSet() }
@@ -80,16 +81,19 @@ enum SpriteStore {
         let set = SpriteSet(rows: frameRows(from: img), mapping: map)
         guard !set.isEmpty, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { return SpriteSet() }
-        try? FileManager.default.createDirectory(at: MatrixStore.dir, withIntermediateDirectories: true)
-        try? png.write(to: file, options: .atomic)
-        try? FileManager.default.removeItem(at: mappingFile)
-        if map != nil { try? FileManager.default.copyItem(at: sidecar, to: mappingFile) }
+        let profile = Profiles.writable(Profiles.active)             // built-ins get a personal copy first
+        try? png.write(to: profile.spriteFile, options: .atomic)
+        try? FileManager.default.removeItem(at: profile.mappingFile)
+        if map != nil { try? FileManager.default.copyItem(at: sidecar, to: profile.mappingFile) }
         return set
     }
 
+    /// Back to the built-in drawn look for the active profile.
     static func remove() {
-        try? FileManager.default.removeItem(at: file)
-        try? FileManager.default.removeItem(at: mappingFile)
+        let profile = Profiles.active
+        guard !profile.builtIn else { return }
+        try? FileManager.default.removeItem(at: profile.spriteFile)
+        try? FileManager.default.removeItem(at: profile.mappingFile)
     }
 
     // MARK: - Slicing

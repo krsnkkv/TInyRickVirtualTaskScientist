@@ -74,5 +74,40 @@ let enc = JSONEncoder(); enc.dateEncodingStrategy = .iso8601
 let again = try! dec.decode(MatrixData.self, from: try! enc.encode(m))
 check(again.tasks == m.tasks && again.migratedFrom == nil, "save/load round trip keeps tasks and ids")
 
+// --- profiles (RICK_DATA_DIR is a fresh temp folder; built-ins come from ./Profiles)
+UserDefaults.standard.removeObject(forKey: "activeProfile")
+let ids = Profiles.all().map(\.id)
+check(ids.contains("mochi") && ids.contains("grumpy-genius"), "built-in profiles found (\(ids))")
+check(Profiles.active.id == "mochi", "default profile is Mochi")
+
+// old single-character setup: a sprite in the data folder + global settings → becomes "Rick"
+let fm = FileManager.default
+try! fm.createDirectory(at: MatrixStore.dir, withIntermediateDirectories: true)
+try! Data([0x89, 0x50, 0x4E, 0x47]).write(to: MatrixStore.dir.appendingPathComponent("sprite.png"))
+try! "{\"idle\": 1}".data(using: .utf8)!.write(to: MatrixStore.dir.appendingPathComponent("sprite.json"))
+UserDefaults.standard.set(true, forKey: "stayStill")
+Profiles.migrateIfNeeded()
+let rick = Profiles.active
+check(rick.name == "Rick" && rick.icon == "🧪" && !rick.builtIn, "migrated into a Rick profile")
+check(fm.fileExists(atPath: rick.spriteFile.path) && fm.fileExists(atPath: rick.mappingFile.path), "sprite moved into Rick's folder")
+check(!fm.fileExists(atPath: MatrixStore.dir.appendingPathComponent("sprite.png").path), "old sprite location cleared")
+check(UserDefaults.standard.bool(forKey: "rick.stayStill"), "settings carried over to Rick")
+Personality.reload()
+check(Personality.lines[.greeting]?.contains { $0.contains("genius") || $0.contains("Rick") } == true, "Rick speaks grumpy-genius")
+UserDefaults.standard.removeObject(forKey: "stayStill"); UserDefaults.standard.removeObject(forKey: "rick.stayStill")
+
+let coach = Profiles.create(name: "Coach K", icon: "🏀", template: Profiles.all().first { $0.id == "mochi" })
+check(coach?.id == "coach-k" && fm.fileExists(atPath: coach!.personalityFile.path), "new profile with a personality")
+check(Profiles.create(name: "Coach K", template: nil)?.id == "coach-k-2", "duplicate names get a new folder")
+
+let mochi = Profiles.all().first { $0.id == "mochi" }!
+let mine = Profiles.writable(mochi)
+check(!mine.builtIn && mine.dir.path.hasPrefix(Profiles.userDir.path), "editing a built-in makes a personal copy")
+check(Profiles.all().first { $0.id == "mochi" }?.builtIn == false, "personal copy takes over")
+
+Profiles.activeID = "mochi"; Personality.reload()
+check(Personality.lines[.greeting]?.contains { $0.contains("🌱") } == true, "switching changes the voice")
+UserDefaults.standard.removeObject(forKey: "activeProfile")
+
 print(failures == 0 ? "✓ all \(passes) checks passed" : "\(failures) failed, \(passes) passed")
 exit(failures == 0 ? 0 : 1)

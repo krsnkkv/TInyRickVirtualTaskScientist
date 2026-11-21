@@ -21,22 +21,24 @@ Tick things off as they land (`- [x]`). Each phase should ship something usable 
 ## Phase 0: Foundations (do first; everything below depends on it)
 Right now each task is just a line of text, and its due date / done state are looked up *by that text*. Syncing with a calendar needs every task to have a stable identity.
 
-- [ ] **Task model:** each task becomes a record: `id`, `title`, `box`, `due`, `done`, `createdAt`, `source` (typed / calendar / mail), `externalID` (calendar event or email it came from)
-- [ ] Migrate `matrix.json` automatically from the current text format (keep a backup)
-- [ ] Keep the typing experience (still type `>>` lines), but map lines ↔ task records behind the scenes
-- [ ] Move to a Swift Package (or Xcode project) with unit tests for date parsing, rolling words, migration
+- [x] **Task model:** each task becomes a record: `id`, `title`, `box`, `due`, `done`, `createdAt`, `source` (typed / calendar / mail), `externalID` (calendar event or email it came from)
+- [x] Migrate `matrix.json` automatically from the current text format (keep a backup)
+- [x] Keep the typing experience (still type `>>` lines), but map lines ↔ task records behind the scenes
+- [x] Unit tests for date parsing, rolling words, migration, identity, profiles (`./test.sh`)
+- [ ] Move to a Swift Package / Xcode project
 - [ ] Settings window (instead of everything living in the 🧪 menu)
-- [ ] **Clean up done tasks:** button to clear struck-through items (optionally archive them to a "Done" log)
+- [x] **Clean up done tasks:** button to clear struck-through items (optionally archive them to a "Done" log)
 
 ## Phase 1: Profiles / alter egos (start here) 🎭
 A profile = a whole character: look, voice and behaviour.
 
-- [ ] Profile folder format: `profiles/<name>/` with `sprite.png`, `sprite.json` (row mapping), `Personality.md`, `profile.json` (name, menu icon, speed, chattiness)
-- [ ] Profile switcher in the menu (🧪 → Profile ▸ Rick / Mochi / …), remembered between launches
-- [ ] Built-in profiles that ship with the app: **Mochi** (original sprout blob) and a blank template
-- [ ] Your local profiles: **Rick** (your sprite sheet + current personality), stays out of git
-- [ ] "New Profile…": pick a sprite sheet, map rows with a little preview, start from a personality template
-- [ ] Per-profile settings (mute, ADHD, etc. can differ per character)
+- [x] Profile folder format: `profiles/<name>/` with `sprite.png`, `sprite.json` (row mapping), `Personality.md`, `profile.json` (name, menu icon, speed, chattiness)
+- [x] Profile switcher in the menu (🧪 → Profile ▸ Rick / Mochi / …), remembered between launches
+- [x] Built-in profiles that ship with the app: **Mochi** (original sprout blob) and a blank template
+- [x] Your local profiles: **Rick** (your sprite sheet + current personality), stays out of git
+- [x] "New Profile…": name + emoji, optional sprite sheet, starts from Mochi's personality
+- [ ] Row-mapping editor with a live preview (instead of hand-writing `sprite.json`)
+- [x] Per-profile settings (mute, ADHD, etc. can differ per character)
 - [ ] Import/export a profile as a single `.zip` (share with friends; only share art you're allowed to share)
 - [ ] Ideas: profiles with different nag styles (gentle coach, drill sergeant, grumpy genius)
 

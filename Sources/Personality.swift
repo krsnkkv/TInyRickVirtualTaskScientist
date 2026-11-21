@@ -17,7 +17,6 @@ enum Personality {
     static var lines: [Moment: [String]] = load()
     private static var lastLine: [Moment: String] = [:]
 
-    static var overrideFile: URL { MatrixStore.dir.appendingPathComponent("Personality.md") }
 
     static func reload() { lines = load() }
 
@@ -65,7 +64,9 @@ enum Personality {
     }
 
     private static func load() -> [Moment: [String]] {
-        let candidates = [overrideFile, Bundle.main.url(forResource: "Personality", withExtension: "md")].compactMap { $0 }
+        // the active profile's voice; the built-in Mochi as a safety net
+        let candidates = [Profiles.active.personalityFile,
+                          Profiles.bundleDir?.appendingPathComponent("mochi/Personality.md")].compactMap { $0 }
         for url in candidates {
             if let text = try? String(contentsOf: url, encoding: .utf8) {
                 let parsed = parse(text)

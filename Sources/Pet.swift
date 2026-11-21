@@ -520,13 +520,21 @@ final class PetController {
     // MARK: options (remembered between launches)
     private static let defaults = UserDefaults.standard
     /// No speech bubbles at all.
-    var muted = defaults.bool(forKey: "muted") { didSet { Self.defaults.set(muted, forKey: "muted"); if muted { say(nil, for: 0) } } }
+    var muted = defaults.bool(forKey: Profiles.key("muted")) { didSet { Self.defaults.set(muted, forKey: Profiles.key("muted")); if muted { say(nil, for: 0) } } }
     /// Never walks off; still animates (guitar, naps, waves).
-    var stayStill = defaults.bool(forKey: "stayStill") { didSet { Self.defaults.set(stayStill, forKey: "stayStill") } }
+    var stayStill = defaults.bool(forKey: Profiles.key("stayStill")) { didSet { Self.defaults.set(stayStill, forKey: Profiles.key("stayStill")) } }
     /// Stays wherever you drop it instead of falling to the floor.
-    var antiGravity = defaults.bool(forKey: "antiGravity") { didSet { Self.defaults.set(antiGravity, forKey: "antiGravity") } }
+    var antiGravity = defaults.bool(forKey: Profiles.key("antiGravity")) { didSet { Self.defaults.set(antiGravity, forKey: Profiles.key("antiGravity")) } }
     /// Hyperactive: hops and zooms around, never naps.
-    var adhd = defaults.bool(forKey: "adhd") { didSet { Self.defaults.set(adhd, forKey: "adhd"); activityTime = 0 } }
+    var adhd = defaults.bool(forKey: Profiles.key("adhd")) { didSet { Self.defaults.set(adhd, forKey: Profiles.key("adhd")); activityTime = 0 } }
+
+    /// Re-reads the settings after switching profile (each profile keeps its own).
+    func reloadSettings() {
+        muted = Self.defaults.bool(forKey: Profiles.key("muted"))
+        stayStill = Self.defaults.bool(forKey: Profiles.key("stayStill"))
+        antiGravity = Self.defaults.bool(forKey: Profiles.key("antiGravity"))
+        adhd = Self.defaults.bool(forKey: Profiles.key("adhd"))
+    }
 
     /// After this long without being hovered, clicked or dragged, Rick gets sad about your list.
     var lonelyAfter: Double = 10 * 60

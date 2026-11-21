@@ -40,22 +40,34 @@ Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" →
 ## List background
 **Choose List Background…** puts any picture behind the four boxes (they turn slightly see-through with wider gaps). It's copied to `~/Library/Application Support/MochiPet/list-background.png`, outside this repo. **Remove List Background** goes back to plain.
 
+## Profiles (alter egos)
+The pet can be different characters. **🧪 menu ▸ Profile** switches between them; each keeps its own look, voice and settings (Mute, ADHD…).
+- Built in: **Mochi** 🌱 (cute and encouraging) and **Grumpy Genius** 🧪 (sarcastic, never mean), in [`Profiles/`](Profiles).
+- Your own live in `~/Library/Application Support/MochiPet/profiles/<name>/` (e.g. your local **Rick** with his sprite sheet); they're never committed.
+- **New Profile…** asks for a name and emoji and starts from Mochi's personality. **Edit Personality…** opens that profile's `Personality.md`; editing a built-in makes your own copy first.
+- A profile folder is `profile.json` (`{"name": …, "icon": …}`), `Personality.md`, and optionally `sprite.png` + `sprite.json`.
+
 ## Personality
-Everything Rick says lives in [`Personality.md`](Personality.md): grumpy-genius snark, but never mean. Each `## section` is a moment (greeting, reminders, being dragged…) and each bullet is a line he might say, with `{item}` and `{when}` filled in. Edit it and rebuild, or drop your own copy at `~/Library/Application Support/MochiPet/Personality.md` and restart Rick.
+Everything a character says lives in its `Personality.md`. Each `## section` is a moment (greeting, reminders, being dragged…) and each bullet is a line it might say, with `{item}` and `{when}` filled in. After editing, use **Options ▸ Restart** to hear the changes.
 
 ## Custom sprite
-**Choose Sprite…** takes a PNG/JPG: either a single image or a whole **sprite sheet**. Sprites should face **right**; Rick flips them when walking left.
+**Profile ▸ Choose Sprite…** (for the active profile) takes a PNG/JPG: either a single image or a whole **sprite sheet**. Sprites should face **right**; Rick flips them when walking left.
 - A solid background colour (taken from the top-left pixel, e.g. white) is removed.
 - On a sheet, the frame grid is detected automatically, and loose bits smaller than a full figure are skipped.
 - **Row 1 is the standing animation and row 2 the walk cycle** (if row 2 has fewer than two frames, row 1 is used for both).
-- The sprite is copied to `~/Library/Application Support/MochiPet/sprite.png`, outside this repo. Sprites ripped from games or shows are copyrighted, so keep them out of git; credit doesn't make them free to redistribute.
+- The sprite is copied into the profile's folder in `~/Library/Application Support/MochiPet/profiles/`, outside this repo. Sprites ripped from games or shows are copyrighted, so keep them out of git; credit doesn't make them free to redistribute.
 
 ## Where your list lives
 `~/Library/Application Support/MochiPet/matrix.json` is plain JSON, which makes it easy to sync elsewhere later. It's kept outside this repo, so git doesn't track your personal list.
+
+## Tests
+`./test.sh` runs the checks in `Tests/` (dates, rolling words, list migration, task identity, profiles).
 
 ## Code
 - `Sources/Pet.swift`: pixel-art character, animations and wandering behaviour (`pixelSize` controls how chunky it looks)
 - `Sources/Matrix.swift`: the four-box list window and saving
 - `Sources/DueDates.swift`: finding due dates in items and wording reminders
 - `Sources/Sprite.swift`: loading custom sprites
+- `Sources/Tasks.swift`: tasks with stable IDs behind the typed lines, migration, done/cleanup
+- `Sources/Profiles.swift`: profile folders, switching, migration from the single-character setup
 - `Sources/main.swift`: app setup and menu
