@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Personality.reload()
         pet.reloadSettings()
         matrix.applyTheme()
+        pet.setSprite(SpriteStore.load())     // before the menu: it lists the sprite's own modes
         buildMenu()
         buildEditMenu()
 
@@ -31,7 +32,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSMenu.popUpContextMenu(self.menu, with: e, for: self.pet.view)
         }
         pet.reminder = { [weak self] in self?.matrix.nextReminder() }
-        pet.setSprite(SpriteStore.load())
         matrix.onVisibility = { [weak self] open in
             guard let self else { return }
             self.pet.chatOpen = open
