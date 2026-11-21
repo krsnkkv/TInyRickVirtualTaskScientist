@@ -50,7 +50,7 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 ]
 ```
 
-Each mode can set any of the usual rows (`idle`, `walk`, `sad`, …); `extras` are rows played as random moves; `behaviour` is `normal`, `still` (never walks) or `hyper` (like ADHD). A row can also be a list, e.g. `"idle": [1, "3:1-2"]`. Sheets whose frames aren't on an even grid can add `"layout": "rows"`: each strip of figures becomes a row and each figure a frame.
+Each mode can set any of the usual rows (`idle`, `walk`, `sad`, …); `extras` are rows played as random moves; `behaviour` is `normal`, `still` (never walks) or `hyper` (like ADHD). `"size": 1.5` draws the pet bigger (up to 3). A row can also be a list, e.g. `"idle": [1, "3:1-2"]`. Sheets whose frames aren't on an even grid can add `"layout": "rows"`: each strip of figures becomes a row and each figure a frame.
 
 Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
 

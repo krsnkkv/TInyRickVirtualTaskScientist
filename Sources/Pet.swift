@@ -248,7 +248,7 @@ final class PetView: NSView {
         // Big art (hi-res sheets): shrink smoothly to ~80pt tall.
         let target: CGFloat = 80
         let big = CGFloat(img.height) > target * 1.4
-        let onScreen = big ? target : CGFloat(img.height) * max(1, (70 / CGFloat(img.height)).rounded())
+        let onScreen = (big ? target : CGFloat(img.height) * max(1, (70 / CGFloat(img.height)).rounded())) * spriteSet.size
         let h: CGFloat = onScreen / scale * sy
         let w = h * CGFloat(img.width) / CGFloat(img.height) * sx / sy
         ctx.saveGState()
@@ -456,6 +456,7 @@ final class PetView: NSView {
         }
         let w = size.width + 20, h = size.height + 12
         let x = min(max(anchorX - w / 2, 4), bounds.width - w - 4)
+        let bottom = min(bottom, bounds.height - h - 2)      // big pets: keep the bubble in the window
         let rect = NSRect(x: x, y: bottom, width: w, height: h)
 
         let path = NSBezierPath(roundedRect: rect, xRadius: 12, yRadius: 12)

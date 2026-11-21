@@ -27,6 +27,8 @@ struct SpriteSet {
     var anims: [String: [CGImage]] = [:]
     /// Modes from sprite.json (empty for most sprites). The first one is the default.
     var modes: [SpriteMode] = []
+    /// How big the pet is drawn compared with normal (sprite.json `"size": 1.5`).
+    var size: CGFloat = 1
     /// Animations before any mode was applied.
     private var base: [String: [CGImage]] = [:]
     static let standardNames = ["idle", "walk", "walkLeft", "wave", "jump", "sleep", "sad", "cryin"]
@@ -46,7 +48,8 @@ struct SpriteSet {
         guard !rows.isEmpty else { return }
         anims["idle"] = rows[0]
         if rows.count > 1, rows[1].count >= 2 { anims["walk"] = rows[1] }
-        for (name, value) in mapping ?? [:] where !["modes", "layout"].contains(name) {
+        if let s = mapping?["size"] as? Double, s > 0 { size = CGFloat(min(s, 3)) }
+        for (name, value) in mapping ?? [:] where !["modes", "layout", "size"].contains(name) {
             if let frames = Self.select(value, from: rows) { anims[name] = frames }
         }
         base = anims
