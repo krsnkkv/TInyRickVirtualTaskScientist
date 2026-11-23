@@ -134,7 +134,7 @@ final class CalendarPane: NSView {
     static let boxColor = [NSColor(hex: 0xD9A800), NSColor(hex: 0x3FA34D), NSColor(hex: 0xE0566B), NSColor(hex: 0x4F74D9)]
     static let boxShort = ["U&I", "U&NI", "NU&I", "NU&NI"]
 
-    private var cardFill: NSColor { theme == .garden ? NSColor(white: 1, alpha: 0.72) : NSColor(white: 1, alpha: 0.9) }
+    private var cardFill: NSColor { theme.isLight ? NSColor(white: 1, alpha: 0.72) : NSColor(white: 1, alpha: 0.9) }
 
     private func addCard(title: String, events: [DayEvent], tasks: [TaskItem], empty: String = "", showDate: Bool = false) {
         let card = NSView()
@@ -329,7 +329,7 @@ final class MonthGridView: NSView {
             let inMonth = cal.component(.month, from: day) == thisMonth
             let isSelected = cal.isDate(day, inSameDayAs: selected)
             let fill: NSColor = isSelected ? NSColor(hex: 0x7B5CFF, alpha: 0.9)
-                : NSColor(white: 1, alpha: inMonth ? (theme == .garden ? 0.7 : 0.88) : 0.35)
+                : NSColor(white: 1, alpha: inMonth ? (theme.isLight ? 0.7 : 0.88) : 0.35)
             fill.setFill()
             NSBezierPath(roundedRect: r, xRadius: 8, yRadius: 8).fill()
             if cal.isDateInToday(day) && !isSelected {

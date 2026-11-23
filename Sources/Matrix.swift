@@ -61,22 +61,22 @@ final class QuadrantView: NSView, NSTextViewDelegate {
     let textView = ListTextView()
     private let titleLabel: NSTextField
     private let scroll = NSScrollView()
-    private let color: NSColor
+    /// Capsule behind the title, so each box reads as a labelled card.
+    private let pill = NSView()
+    /// Text colour on this card (set by the theme).
+    private var ink: NSColor = .black
     var onChange: (() -> Void)?
 
-    init(title: String, color: NSColor) {
-        self.color = color
+    init(title: String) {
         titleLabel = NSTextField(labelWithString: title)
         super.init(frame: .zero)
         wantsLayer = true
-        layer?.backgroundColor = color.cgColor
-        layer?.masksToBounds = true
-        layer?.borderColor = NSColor(hex: 0x1C2333).cgColor
-        layer?.borderWidth = 2.5
-        layer?.cornerRadius = 3
+        layer?.masksToBounds = false                  // let the shadow / glow show; the scroll view clips the text
+        layer?.cornerRadius = 18
 
-        titleLabel.font = .systemFont(ofSize: 15, weight: .bold)
-        titleLabel.textColor = .black
+        pill.wantsLayer = true
+        addSubview(pill)
+        titleLabel.font = .systemFont(ofSize: 13, weight: .heavy)
         addSubview(titleLabel)
 
         scroll.drawsBackground = false
@@ -106,12 +106,27 @@ final class QuadrantView: NSView, NSTextViewDelegate {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Slightly see-through so a list background shows behind the boxes.
-    func setTranslucent(_ on: Bool) {
-        layer?.backgroundColor = color.withAlphaComponent(on ? 0.88 : 1).cgColor
-        layer?.cornerRadius = on ? 14 : 3
-        layer?.borderWidth = on ? 1.5 : 2.5
-        layer?.borderColor = on ? NSColor(white: 1, alpha: 0.55).cgColor : NSColor(hex: 0x1C2333).cgColor
+    /// Dresses the box as a card in the theme's colours (a bit see-through on a picture).
+    func apply(card: ListTheme.Card, index: Int, picture: Bool) {
+        ink = card.text
+        let fill = card.fills[index % card.fills.count]
+        layer?.backgroundColor = (picture ? fill.withAlphaComponent(min(fill.alphaComponent, 0.85)) : fill).cgColor
+        layer?.borderColor = card.border.cgColor
+        layer?.borderWidth = card.borderWidth
+        layer?.cornerRadius = 18
+        let shadow = card.glow ?? NSColor(white: 0, alpha: 0.28)
+        layer?.shadowColor = shadow.cgColor
+        layer?.shadowOpacity = 1
+        layer?.shadowRadius = card.glow == nil ? 10 : 14
+        layer?.shadowOffset = card.glow == nil ? CGSize(width: 0, height: -3) : .zero
+        pill.layer?.backgroundColor = ink.withAlphaComponent(0.1).cgColor
+        pill.layer?.borderColor = ink.withAlphaComponent(0.18).cgColor
+        pill.layer?.borderWidth = 1
+        titleLabel.textColor = ink
+        textView.textColor = ink
+        textView.insertionPointColor = ink
+        textView.typingAttributes = [.font: textView.font!, .foregroundColor: ink]
+        needsLayout = true
     }
 
     var text: String {
@@ -140,7 +155,7 @@ final class QuadrantView: NSView, NSTextViewDelegate {
             let item = itemText(Substring(line))
             if completed.contains(item) {                       // done: grey + struck through
                 lm.addTemporaryAttributes([.strikethroughStyle: NSUnderlineStyle.single.rawValue,
-                                           .foregroundColor: NSColor(hex: 0x000000, alpha: 0.4)], forCharacterRange: range)
+                                           .foregroundColor: self.ink.withAlphaComponent(0.4)], forCharacterRange: range)
                 return
             }
             guard let due = dueDates[item] else { return }
@@ -153,7 +168,7 @@ final class QuadrantView: NSView, NSTextViewDelegate {
         if let soonest {
             let days = DueParser.daysUntil(soonest)
             dueLabel.stringValue = "⏰ next: \(DueParser.describe(soonest))"
-            dueLabel.textColor = days < 0 ? NSColor(hex: 0xC62828) : days <= 1 ? NSColor(hex: 0xD84315) : NSColor(hex: 0x444444)
+            dueLabel.textColor = days < 0 ? NSColor(hex: 0xC62828) : days <= 1 ? NSColor(hex: 0xD84315) : ink.withAlphaComponent(0.7)
         } else {
             dueLabel.stringValue = ""
         }
@@ -164,12 +179,15 @@ final class QuadrantView: NSView, NSTextViewDelegate {
         super.layout()
         let pad: CGFloat = 12
         titleLabel.sizeToFit()
-        titleLabel.frame.origin = CGPoint(x: pad, y: bounds.height - pad - titleLabel.frame.height)
+        titleLabel.frame.origin = CGPoint(x: pad + 10, y: bounds.height - pad - 3 - titleLabel.frame.height)
+        pill.frame = titleLabel.frame.insetBy(dx: -10, dy: -3)
+        pill.layer?.cornerRadius = pill.frame.height / 2
+        layer?.shadowPath = CGPath(roundedRect: bounds, cornerWidth: 18, cornerHeight: 18, transform: nil)
         dueLabel.sizeToFit()
         dueLabel.frame.origin = CGPoint(x: bounds.width - pad - dueLabel.frame.width, y: titleLabel.frame.minY + 1)
-        dueLabel.isHidden = dueLabel.frame.minX < titleLabel.frame.maxX + 6
-        scroll.frame = NSRect(x: pad, y: pad, width: bounds.width - pad * 2,
-                              height: titleLabel.frame.minY - pad - 6)
+        dueLabel.isHidden = dueLabel.frame.minX < pill.frame.maxX + 6
+        scroll.frame = NSRect(x: pad + 2, y: pad, width: bounds.width - pad * 2 - 2,
+                              height: pill.frame.minY - pad - 6)
         textView.frame.size.width = scroll.contentSize.width
     }
 
@@ -216,10 +234,10 @@ final class MatrixController: NSObject, NSWindowDelegate {
 
     override init() {
         quads = [
-            QuadrantView(title: "Urgent & Important", color: NSColor(hex: 0xFBF3A3)),
-            QuadrantView(title: "Urgent & Not Important", color: NSColor(hex: 0xB5FCA7)),
-            QuadrantView(title: "Not Urgent & Important", color: NSColor(hex: 0xFFC9C9)),
-            QuadrantView(title: "Not Urgent & Not Important", color: NSColor(hex: 0xB9CBFC)),
+            QuadrantView(title: "🔥 Urgent & Important"),
+            QuadrantView(title: "⚡️ Urgent & Not Important"),
+            QuadrantView(title: "🌱 Not Urgent & Important"),
+            QuadrantView(title: "🫧 Not Urgent & Not Important"),
         ]
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 640, height: 460),
                         styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
@@ -297,13 +315,14 @@ final class MatrixController: NSObject, NSWindowDelegate {
         grid.background = img
         grid.theme = ListTheme.current
         grid.pane.theme = grid.theme
-        quads.forEach { $0.setTranslucent(img != nil || grid.theme.translucentBoxes) }
+        for (i, q) in quads.enumerated() { q.apply(card: grid.theme.card, index: i, picture: img != nil) }
+        refreshHighlights()                                // done / due colours follow the card's text colour
         if let last = lastToday { setToday(last) }      // re-colour the Today strip
     }
 
     /// Switches the list's theme (for the active profile) or re-applies it after a profile switch.
     func applyTheme(_ theme: ListTheme? = nil) {
-        if let theme { ListTheme.current = theme }
+        if let theme { ListTheme.chosen = theme }
         applyBackground(grid.background)
     }
 
@@ -592,7 +611,7 @@ final class MatrixGridView: NSView {
 
     /// Switches and buttons drawn on the background: dark style on Space/Plain/pictures, light on Garden.
     func styleControls() {
-        let light = background == nil && theme == .garden
+        let light = background == nil && theme.isLight
         let look = NSAppearance(named: light ? .aqua : .darkAqua)
         [modeSwitch, viewSwitch, pane].forEach { $0.appearance = look }
     }
@@ -654,8 +673,7 @@ final class MatrixGridView: NSView {
         }
         let strip: CGFloat = todayLabel.attributedStringValue.length == 0 || !showsToday ? 0 : 26
         todayLabel.isHidden = strip == 0
-        let roomy = background != nil || theme != .plain
-        let gap: CGFloat = roomy ? 14 : 4, top: CGFloat = 28 + strip   // wider gutters let the picture show
+        let gap: CGFloat = 16, top: CGFloat = 30 + strip    // cards floating on the background, not a grid
         todayLabel.frame = NSRect(x: 12, y: bounds.height - 28 - strip + 4, width: bounds.width - 24, height: 20)
         let w = (bounds.width - gap * 3) / 2
         let h = (bounds.height - top - gap * 2) / 2

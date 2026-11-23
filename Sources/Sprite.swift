@@ -20,6 +20,8 @@ struct SpriteMode {
     enum Behaviour: String { case normal, still, hyper }
     var name: String
     var behaviour: Behaviour = .normal
+    /// The list window's look while in this mode (a ListTheme name, e.g. "party"); nil = the profile's own.
+    var theme: String? = nil
     var anims: [String: [CGImage]] = [:]
 }
 
@@ -56,7 +58,8 @@ struct SpriteSet {
         // "modes": [{ "name": "Party", "behaviour": "still", "idle": 8, "walk": 9, "extras": [8, 9] }, …]
         for m in mapping?["modes"] as? [[String: Any]] ?? [] {
             guard let name = m["name"] as? String else { continue }
-            var mode = SpriteMode(name: name, behaviour: (m["behaviour"] as? String).flatMap(SpriteMode.Behaviour.init) ?? .normal)
+            var mode = SpriteMode(name: name, behaviour: (m["behaviour"] as? String).flatMap(SpriteMode.Behaviour.init) ?? .normal,
+                                  theme: m["theme"] as? String)
             for (key, value) in m where Self.standardNames.contains(key) {
                 if let frames = Self.select(value, from: rows) { mode.anims[key] = frames }
             }

@@ -46,11 +46,11 @@ Needs only the Xcode command-line tools (native Swift/AppKit, no other dependenc
 "modes": [
   { "name": "Normal", "idle": 1, "walk": 4, "extras": [2, 3, 5] },
   { "name": "Hyper", "behaviour": "hyper", "extras": [1, 2, 3, 5, 6] },
-  { "name": "Party", "behaviour": "still", "idle": 8, "extras": [8, 9] }
+  { "name": "Party", "behaviour": "still", "theme": "party", "idle": 8, "extras": [8, 9] }
 ]
 ```
 
-Each mode can set any of the usual rows (`idle`, `walk`, `sad`, …); `extras` are rows played as random moves; `behaviour` is `normal`, `still` (never walks) or `hyper` (like ADHD). `"size": 1.5` draws the pet bigger (up to 3). A row can also be a list, e.g. `"idle": [1, "3:1-2"]`. Sheets whose frames aren't on an even grid can add `"layout": "rows"`: each strip of figures becomes a row and each figure a frame.
+Each mode can set any of the usual rows (`idle`, `walk`, `sad`, …); `extras` are rows played as random moves; `behaviour` is `normal`, `still` (never walks) or `hyper` (like ADHD); `theme` gives the list window its own look while that mode is on (any List Background name, e.g. `"party"`, `"rain"`, `"neon"`). `"size": 1.5` draws the pet bigger (up to 3). A row can also be a list, e.g. `"idle": [1, "3:1-2"]`. Sheets whose frames aren't on an even grid can add `"layout": "rows"`: each strip of figures becomes a row and each figure a frame.
 
 Reminders leave out the date words you wrote ("Cross check MLS by tomorrow!" → "Tomorrow: Cross check MLS…").
 
@@ -69,7 +69,23 @@ The list window has a **☑︎ Tasks | 📅 Calendar** switch at the top (⌘1 /
 - Choose which calendars to show, and which one new tasks go into.
 
 ## List background
-**Options ▸ List Background** picks a theme painted by the app: **Space** (deep purple sky, nebulas, stars; the default for Rick/Grumpy Genius), **Garden** (cream and mint with floating leaves; Mochi's default) or **Plain**. Each profile remembers its own. **Choose Picture…** puts any picture behind the four boxes (they turn slightly see-through with wider gaps). It's copied to `~/Library/Application Support/MochiPet/list-background.png`, outside this repo. **Remove List Background** goes back to plain.
+**Options ▸ List Background** picks a look painted by the app. The four boxes are rounded cards in colours that match it:
+
+| Look | What it is | Default for |
+|---|---|---|
+| Space | deep purple sky, nebulas, stars | Rick |
+| Garden | cream and mint with floating leaves | Mochi |
+| Infinity | dark blue with rings of light, glowing cards | Gojo |
+| Candy | pink and lavender with sprinkles | Pinkie |
+| Neon | black with a neon grid, dark glowing cards | |
+| Party | confetti and streamers | |
+| Storm | dark red with lightning, dark cards | |
+| Rain | grey-blue with rain streaks | |
+| Bubblegum | pink with big bubbles | |
+| Calm | cream and sage with soft hills | |
+| Plain | the original flat colours | |
+
+Each profile remembers its own pick, and a mode with a `theme` switches the look while it's on (picking a look from the menu overrides that until the next mode switch). **Choose Picture…** puts any picture behind the four boxes (they turn slightly see-through with wider gaps). It's copied to `~/Library/Application Support/MochiPet/list-background.png`, outside this repo. **Remove List Background** goes back to plain.
 
 ## Profiles (alter egos)
 The pet can be different characters. **🧪 menu ▸ Profile** switches between them; each keeps its own look, voice and settings (Mute, ADHD…).

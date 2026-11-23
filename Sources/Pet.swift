@@ -554,9 +554,13 @@ final class PetController {
     private var still: Bool { stayStill || mode?.behaviour == .still }
     private var hyper: Bool { adhd || mode?.behaviour == .hyper }
 
+    /// Called whenever the mode (or the sprite) changes, e.g. so the list can switch its look.
+    var onModeChange: ((SpriteMode?) -> Void)?
+
     private func applyMode(named name: String?) {
         mode = fullSet.modes.first { $0.name == name } ?? fullSet.modes.first
         view.spriteSet = mode.map { fullSet.applying($0) } ?? fullSet
+        onModeChange?(mode)
     }
 
     /// Switches mode (remembered per profile) and announces it.

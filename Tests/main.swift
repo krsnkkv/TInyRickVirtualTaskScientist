@@ -166,5 +166,20 @@ let wild = modeSet.applying(modeSet.modes[1])
 check(wild.idle.count == 3 && wild.idleExtras == ["extra1", "extra2"] && wild.anims["sad"]?.count == 3, "a mode swaps rows, keeps the rest")
 check(modeSet.applying(modeSet.modes[0]).idle.count == 2, "switching back restores the default rows")
 
+// --- list looks: per profile, and a mode's own look wins while it's on
+let themed = SpriteSet(rows: bandRows, mapping: ["modes": [["name": "Party", "theme": "party"], ["name": "Plain"]]])
+check(themed.modes[0].theme == "party" && themed.modes[1].theme == nil, "a mode can bring its own list look")
+check(ListTheme.defaultFor(profileID: "gojo") == .infinity && ListTheme.defaultFor(profileID: "pinkie") == .candy
+      && ListTheme.defaultFor(profileID: "rick") == .space, "profiles get their own default look")
+Profiles.activeID = "mochi"
+ListTheme.chosen = .rain
+ListTheme.modeOverride = .party
+check(ListTheme.current == .party, "a mode's look wins over the profile's pick")
+ListTheme.modeOverride = nil
+check(ListTheme.current == .rain, "leaving the mode brings the profile's pick back")
+UserDefaults.standard.removeObject(forKey: Profiles.key("listTheme"))
+UserDefaults.standard.removeObject(forKey: "activeProfile")
+check(ListTheme.allCases.allSatisfy { $0.card.fills.count == 4 }, "every look colours all four boxes")
+
 print(failures == 0 ? "✓ all \(passes) checks passed" : "\(failures) failed, \(passes) passed")
 exit(failures == 0 ? 0 : 1)

@@ -19,6 +19,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Personality.reload()
         pet.reloadSettings()
         matrix.applyTheme()
+        pet.onModeChange = { [weak self] mode in            // a mode can bring its own list look
+            ListTheme.modeOverride = mode?.theme.flatMap(ListTheme.init)
+            self?.matrix.applyTheme()
+            if self?.statusItem != nil { self?.rebuildMenu() }
+        }
         pet.setSprite(SpriteStore.load())     // before the menu: it lists the sprite's own modes
         buildMenu()
         buildEditMenu()
@@ -523,6 +528,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func pickTheme(_ item: NSMenuItem) {
         guard let raw = item.representedObject as? String, let theme = ListTheme(rawValue: raw) else { return }
         if matrix.hasPicture { matrix.setBackground(from: nil) }    // a theme replaces the picture
+        ListTheme.modeOverride = nil                                // your pick wins until the next mode switch
         matrix.applyTheme(theme)
         rebuildMenu()
         if !matrix.isOpen { openList() }
