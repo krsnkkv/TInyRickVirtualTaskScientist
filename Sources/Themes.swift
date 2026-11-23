@@ -51,28 +51,28 @@ enum ListTheme: String, CaseIterable {
                         text: NSColor(hex: 0x10162B), border: NSColor(hex: 0x9CC8FF, alpha: 0.9), borderWidth: 1.5,
                         glow: NSColor(hex: 0x6FB6FF, alpha: 0.7))
         case .candy:
-            return Card(fills: [0xFFD6E8, 0xD4F7EC, 0xFFF1C2, 0xE2DCFF].map { NSColor(hex: $0, alpha: 0.95) },
-                        text: NSColor(hex: 0x4A2340), border: .white, borderWidth: 2)
+            return Card(fills: [0xFFC9E1, 0xFFDCEC, 0xFFD1E8, 0xFFE6F2].map { NSColor(hex: $0, alpha: 0.95) },
+                        text: NSColor(hex: 0x4A1A3A), border: .white, borderWidth: 2)
         case .neon:
-            return Card(fills: [0x1A1026, 0x0F1A1E, 0x1E1018, 0x10132A].map { NSColor(hex: $0, alpha: 0.92) },
-                        text: NSColor(hex: 0xF4F0FF), border: NSColor(hex: 0xFF3DCB), borderWidth: 2,
-                        glow: NSColor(hex: 0xFF3DCB, alpha: 0.9))
+            return Card(fills: [0x26081C, 0x1E0A1A, 0x2A0A22, 0x1C0818].map { NSColor(hex: $0, alpha: 0.92) },
+                        text: NSColor(hex: 0xFFE8F5), border: NSColor(hex: 0xFF3DB4), borderWidth: 2,
+                        glow: NSColor(hex: 0xFF3DB4, alpha: 0.9))
         case .party:
-            return Card(fills: [0xFFF0A8, 0xB8F2E6, 0xFFC4D6, 0xC9D7FF].map { NSColor(hex: $0, alpha: 0.95) },
-                        text: NSColor(hex: 0x3A1F3D), border: .white, borderWidth: 2.5)
+            return Card(fills: [0xFFD0E6, 0xFFE2EF, 0xFFC4DE, 0xFFDAEB].map { NSColor(hex: $0, alpha: 0.95) },
+                        text: NSColor(hex: 0x4A1638), border: .white, borderWidth: 2.5)
         case .storm:
-            return Card(fills: [0x2A1114, 0x22161A, 0x2B1416, 0x1F1719].map { NSColor(hex: $0, alpha: 0.9) },
-                        text: NSColor(hex: 0xFFE9E6), border: NSColor(hex: 0xE53935, alpha: 0.85), borderWidth: 1.5,
-                        glow: NSColor(hex: 0xE53935, alpha: 0.6))
+            return Card(fills: [0x2C0D22, 0x24101E, 0x300E26, 0x220C1C].map { NSColor(hex: $0, alpha: 0.9) },
+                        text: NSColor(hex: 0xFFE6F2), border: NSColor(hex: 0xE0287A, alpha: 0.85), borderWidth: 1.5,
+                        glow: NSColor(hex: 0xE0287A, alpha: 0.6))
         case .rain:
-            return Card(fills: [0xDCE6EF, 0xD5E2E8, 0xE1E3EE, 0xD3DCEA].map { NSColor(hex: $0, alpha: 0.88) },
-                        text: NSColor(hex: 0x26323F), border: NSColor(white: 1, alpha: 0.6), borderWidth: 1)
+            return Card(fills: [0xF1DDE6, 0xEDD6E0, 0xF4E1E9, 0xEAD3DE].map { NSColor(hex: $0, alpha: 0.9) },
+                        text: NSColor(hex: 0x3F2433), border: NSColor(white: 1, alpha: 0.6), borderWidth: 1)
         case .bubblegum:
-            return Card(fills: [0xFFE3EF, 0xFFE9DA, 0xFFDDF4, 0xF3E3FF].map { NSColor(hex: $0, alpha: 0.95) },
+            return Card(fills: [0xFFE0EE, 0xFFEAF3, 0xFFD6EA, 0xFFE4F1].map { NSColor(hex: $0, alpha: 0.95) },
                         text: NSColor(hex: 0x5A2347), border: NSColor(hex: 0xFF8CC6), borderWidth: 2)
         case .calm:
-            return Card(fills: [0xFBF8EF, 0xEEF4EC, 0xF6F0EA, 0xEDF1F4].map { NSColor(hex: $0, alpha: 0.95) },
-                        text: NSColor(hex: 0x3D4540), border: NSColor(hex: 0xD9E2D6), borderWidth: 1)
+            return Card(fills: [0xFDF3F6, 0xFAEDF2, 0xFCF1F4, 0xF8EAF0].map { NSColor(hex: $0, alpha: 0.95) },
+                        text: NSColor(hex: 0x4A3540), border: NSColor(hex: 0xF0D3DF), borderWidth: 1)
         case .plain:
             return Card(fills: [0xFBF3A3, 0xB5FCA7, 0xFFC9C9, 0xB9CBFC].map { NSColor(hex: $0) },
                         text: .black, border: .clear)
@@ -147,10 +147,10 @@ enum ListTheme: String, CaseIterable {
             }
 
         case .candy:
-            gradient([0xFFC6E0, 0xFFE3F0, 0xE6DCFF], r, angle: -60)
+            gradient([0xFFB3D6, 0xFFD6EA, 0xFFC2E0], r, angle: -60)
             glow(r, 0.2, 0.8, 0.4, NSColor(hex: 0xFF9ACB, alpha: 0.35))
-            glow(r, 0.85, 0.2, 0.4, NSColor(hex: 0x9FE8D9, alpha: 0.35))
-            let sprinkles = [0xFF5FA2, 0x5FD3C0, 0xFFD25F, 0x9C7BFF, 0x5FB3FF]
+            glow(r, 0.85, 0.2, 0.4, NSColor(hex: 0xFFE3F1, alpha: 0.45))
+            let sprinkles = [0xFF4FA0, 0xFFFFFF, 0xE0307F, 0xFF8CC4, 0xC2185B]
             for i in 0..<Int(r.width * r.height / 2200) {
                 let p = point(&rng, r)
                 let c = NSColor(hex: UInt32(sprinkles[i % sprinkles.count]), alpha: 0.75)
@@ -159,8 +159,8 @@ enum ListTheme: String, CaseIterable {
 
         case .neon:
             NSColor(hex: 0x07040F).setFill(); r.fill()
-            glow(r, 0.15, 0.85, 0.45, NSColor(hex: 0xFF3DCB, alpha: 0.25))
-            glow(r, 0.85, 0.15, 0.45, NSColor(hex: 0x2DFFE0, alpha: 0.22))
+            glow(r, 0.15, 0.85, 0.45, NSColor(hex: 0xFF3DB4, alpha: 0.28))
+            glow(r, 0.85, 0.15, 0.45, NSColor(hex: 0xFF7AD1, alpha: 0.22))
             // perspective grid on the floor
             let grid = NSBezierPath(); grid.lineWidth = 1
             let horizon = r.height * 0.42
@@ -169,14 +169,14 @@ enum ListTheme: String, CaseIterable {
                 grid.move(to: CGPoint(x: r.midX + (x - r.midX) * 0.15, y: horizon)); grid.line(to: CGPoint(x: x * 3 - r.width, y: 0))
             }
             for i in 1...8 { let y = horizon * pow(CGFloat(i) / 8, 2); grid.move(to: CGPoint(x: 0, y: y)); grid.line(to: CGPoint(x: r.width, y: y)) }
-            NSColor(hex: 0x2DFFE0, alpha: 0.35).setStroke(); grid.stroke()
-            let zig = [0xFF3DCB, 0xFFE53D, 0x2DFFE0, 0x7CFF3D]
+            NSColor(hex: 0xFF5CC4, alpha: 0.4).setStroke(); grid.stroke()
+            let zig = [0xFF3DB4, 0xFF8AD8, 0xFFFFFF, 0xE0287A]
             for i in 0..<Int(r.width * r.height / 14000) {
                 zigzag(point(&rng, r), NSColor(hex: UInt32(zig[i % zig.count]), alpha: 0.85))
             }
 
         case .party:
-            gradient([0xFFB3C7, 0xFFD6A5, 0xFFF1A8], r, angle: -45)
+            gradient([0xFF9FCB, 0xFFC4E0, 0xFFE3F0], r, angle: -45)
             // streamers
             for i in 0..<5 {
                 let s = NSBezierPath(); s.lineWidth = 5
@@ -184,24 +184,24 @@ enum ListTheme: String, CaseIterable {
                 s.move(to: CGPoint(x: x0, y: r.height))
                 s.curve(to: CGPoint(x: x0 + 30, y: r.height * 0.55),
                         controlPoint1: CGPoint(x: x0 - 50, y: r.height * 0.85), controlPoint2: CGPoint(x: x0 + 70, y: r.height * 0.75))
-                NSColor(hex: UInt32([0xFF4F8B, 0x4FC3FF, 0xFFC107, 0x8BC34A, 0xB388FF][i]), alpha: 0.55).setStroke(); s.stroke()
+                NSColor(hex: UInt32([0xFF2E8B, 0xFFFFFF, 0xC2185B, 0xFF7AB8, 0xE91E63][i]), alpha: 0.55).setStroke(); s.stroke()
             }
-            let confetti = [0xFF4F8B, 0x4FC3FF, 0xFFC107, 0x8BC34A, 0xB388FF, 0xFF7043]
+            let confetti = [0xFF2E8B, 0xFFFFFF, 0xC2185B, 0xFF7AB8, 0xE91E63, 0xFFB3D6]
             for i in 0..<Int(r.width * r.height / 1500) {
                 let c = NSColor(hex: UInt32(confetti[i % confetti.count]), alpha: 0.8)
                 if i % 4 == 0 { dot(point(&rng, r), 5, c) } else { stroke(point(&rng, r), length: 8, angle: rng.next() * .pi, width: 4, c) }
             }
 
         case .storm:
-            gradient([0x0B0A0C, 0x2A0E12, 0x4A1218], r, angle: -95)
-            glow(r, 0.5, 1.0, 0.6, NSColor(hex: 0xFF3B30, alpha: 0.18))
+            gradient([0x0C070B, 0x2A0B1E, 0x4D1035], r, angle: -95)
+            glow(r, 0.5, 1.0, 0.6, NSColor(hex: 0xFF2E8B, alpha: 0.2))
             for i in 0..<Int(r.width * r.height / 5000) {           // drifting embers
-                dot(point(&rng, r), 1 + rng.next() * 2.5, NSColor(hex: i % 3 == 0 ? 0xFFB199 : 0xFF5A4E, alpha: 0.25 + rng.next() * 0.5))
+                dot(point(&rng, r), 1 + rng.next() * 2.5, NSColor(hex: i % 3 == 0 ? 0xFFB3D6 : 0xFF3D9A, alpha: 0.25 + rng.next() * 0.5))
             }
             for i in 0..<3 { bolt(CGPoint(x: r.width * (0.18 + CGFloat(i) * 0.33), y: r.height), r.height * 0.45, &rng) }
 
         case .rain:
-            gradient([0x5D6B7A, 0x7D8B99, 0xA3AEB9], r, angle: -90)
+            gradient([0x7A4E66, 0x9C6E86, 0xC293AA], r, angle: -90)
             glow(r, 0.3, 1.0, 0.5, NSColor(white: 1, alpha: 0.15))
             let drops = NSBezierPath(); drops.lineWidth = 1.2; drops.lineCapStyle = .round
             for _ in 0..<Int(r.width * r.height / 900) {
@@ -222,7 +222,7 @@ enum ListTheme: String, CaseIterable {
             }
 
         case .calm:
-            gradient([0xF7F3EA, 0xEAF1E6, 0xDDE9E4], r, angle: -90)
+            gradient([0xFCF3F5, 0xF8E6EC, 0xF2D9E3], r, angle: -90)
             for i in 0..<5 {                                              // soft rolling hills
                 let y = r.height * (0.06 + CGFloat(i) * 0.08)
                 let hill = NSBezierPath()
@@ -230,9 +230,9 @@ enum ListTheme: String, CaseIterable {
                 hill.curve(to: CGPoint(x: r.width, y: y * 0.8),
                            controlPoint1: CGPoint(x: r.width * 0.3, y: y + 40), controlPoint2: CGPoint(x: r.width * 0.7, y: y - 30))
                 hill.line(to: CGPoint(x: r.width, y: 0)); hill.close()
-                NSColor(hex: 0x9BBBA3, alpha: 0.12).setFill(); hill.fill()
+                NSColor(hex: 0xE59AB8, alpha: 0.12).setFill(); hill.fill()
             }
-            glow(r, 0.8, 0.85, 0.25, NSColor(hex: 0xFFE7B3, alpha: 0.6))
+            glow(r, 0.8, 0.85, 0.25, NSColor(hex: 0xFFE0EC, alpha: 0.7))
         }
     }
 
@@ -278,8 +278,8 @@ enum ListTheme: String, CaseIterable {
             p = CGPoint(x: p.x + (rng.next() - 0.5) * 40, y: p.y - length / 6)
             b.line(to: p)
         }
-        NSColor(hex: 0xFF5A4E, alpha: 0.25).setStroke(); b.lineWidth = 8; b.stroke()
-        NSColor(hex: 0xFFD2C9, alpha: 0.75).setStroke(); b.lineWidth = 2; b.stroke()
+        NSColor(hex: 0xFF3D9A, alpha: 0.28).setStroke(); b.lineWidth = 8; b.stroke()
+        NSColor(hex: 0xFFD6EA, alpha: 0.8).setStroke(); b.lineWidth = 2; b.stroke()
     }
 }
 

@@ -76,13 +76,13 @@ The list window has a **☑︎ Tasks | 📅 Calendar** switch at the top (⌘1 /
 | Space | deep purple sky, nebulas, stars | Rick |
 | Garden | cream and mint with floating leaves | Mochi |
 | Infinity | dark blue with rings of light, glowing cards | Gojo |
-| Candy | pink and lavender with sprinkles | Pinkie |
-| Neon | black with a neon grid, dark glowing cards | |
-| Party | confetti and streamers | |
-| Storm | dark red with lightning, dark cards | |
-| Rain | grey-blue with rain streaks | |
+| Candy | pink with pink and white sprinkles | Pinkie |
+| Neon | black with a hot-pink neon grid, dark glowing cards | |
+| Party | pink confetti and streamers | |
+| Storm | dark magenta with pink lightning, dark cards | |
+| Rain | dusty rose with rain streaks | |
 | Bubblegum | pink with big bubbles | |
-| Calm | cream and sage with soft hills | |
+| Calm | blush with soft pink hills | |
 | Plain | the original flat colours | |
 
 Each profile remembers its own pick, and a mode with a `theme` switches the look while it's on (picking a look from the menu overrides that until the next mode switch). **Choose Picture…** puts any picture behind the four boxes (they turn slightly see-through with wider gaps). It's copied to `~/Library/Application Support/MochiPet/list-background.png`, outside this repo. **Remove List Background** goes back to plain.
@@ -117,7 +117,7 @@ Everything a character says lives in its `Personality.md`. Each `## section` is 
 - `Sources/Sprite.swift`: loading custom sprites
 - `Sources/Tasks.swift`: tasks with stable IDs behind the typed lines, migration, done/cleanup
 - `Sources/CalendarPane.swift`: the Calendar side of the list window (Schedule and Month views)
-- `Sources/Themes.swift`: Space / Garden / Plain list backgrounds
+- `Sources/Themes.swift`: the list window's looks (backgrounds and card colours)
 - `Sources/Calendar.swift`, `Sources/CalendarLink.swift`: EventKit access, Today strip data, task↔event sync rules
 - `Sources/Profiles.swift`: profile folders, switching, migration from the single-character setup
 - `Sources/main.swift`: app setup and menu

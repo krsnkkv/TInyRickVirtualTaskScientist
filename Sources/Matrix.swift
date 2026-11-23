@@ -234,10 +234,10 @@ final class MatrixController: NSObject, NSWindowDelegate {
 
     override init() {
         quads = [
-            QuadrantView(title: "🔥 Urgent & Important"),
-            QuadrantView(title: "⚡️ Urgent & Not Important"),
-            QuadrantView(title: "🌱 Not Urgent & Important"),
-            QuadrantView(title: "🫧 Not Urgent & Not Important"),
+            QuadrantView(title: "Urgent & Important"),
+            QuadrantView(title: "Urgent & Not Important"),
+            QuadrantView(title: "Not Urgent & Important"),
+            QuadrantView(title: "Not Urgent & Not Important"),
         ]
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 640, height: 460),
                         styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
